@@ -2,7 +2,7 @@
 FROM golang:1.23-alpine AS builder
 WORKDIR /app
 COPY . .
-RUN go build -o librascan .
+RUN go build -o ./cmd/librascan .
 
 # Final stage
 FROM alpine:latest

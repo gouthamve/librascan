@@ -12,8 +12,9 @@ docker-build:
 
 dev:
 	@echo "Starting rapid iteration mode..."
-	reflex -r '\.go$$' -s -- sh -c "go build -o librascan . && ./librascan"
+	reflex -r '\.go$$' -s -- sh -c "go build -o librascan ./cmd/librascan && ./librascan"
 
 setup-deps:
 	@echo "Installing dependencies..."
 	go install github.com/cespare/reflex@latest
+	go mod tidy

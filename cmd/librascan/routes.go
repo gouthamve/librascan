@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -9,7 +10,7 @@ import (
 )
 
 // SetupRoutes registers HTTP endpoints using the Echo instance.
-func SetupRoutes(e *echo.Echo, requestsTotal prometheus.Counter) {
+func SetupRoutes(e *echo.Echo, requestsTotal prometheus.Counter, db *sql.DB) {
 	// Root endpoint that increments the metric
 	e.GET("/", func(c echo.Context) error {
 		requestsTotal.Inc()
@@ -19,6 +20,8 @@ func SetupRoutes(e *echo.Echo, requestsTotal prometheus.Counter) {
 	// Prometheus metrics endpoint wrapped for Echo
 	e.GET("/metrics", echo.WrapHandler(promhttp.Handler()))
 
-	// New endpoint to lookup a book by ISBN.
-	e.GET("/lookup/:isbn", lookupBookHandler)
+	ls := newLibrascan(db)
+
+	e.GET("/debug/lookup/:isbn", ls.LookupBookHandler)
+	e.POST("/books/:isbn", ls.AddBookFromISBN)
 }
