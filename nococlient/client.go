@@ -28,31 +28,23 @@ func NewNocoClient(rawURL, apiKey string) (*NocoClient, error) {
 	}, nil
 }
 
-func (c *NocoClient) ListBases() error {
+func (c *NocoClient) ListBases() (*BaseList, error) {
 	bases, err := c.listBases()
 	if err != nil {
-		return fmt.Errorf("failed to list databases: %w", err)
+		return nil, fmt.Errorf("failed to list databases: %w", err)
 	}
 
-	for _, base := range bases.List {
-		fmt.Printf("ID: %s, Title: %s\n", base.ID, base.Title)
-	}
-
-	// Implement the list databases API
-	return nil
+	return bases, nil
 }
 
 func (c *NocoClient) CreateBaseIfNotExists(name string) error {
-	bases, err := c.listBases()
+	base, err := c.getBase(name)
 	if err != nil {
-		return fmt.Errorf("failed to list databases: %w", err)
+		return fmt.Errorf("failed to get database: %w", err)
 	}
-
-	for _, base := range bases.List {
-		if base.Title == name {
-			slog.Info("Database already exists", "name", name)
-			return nil
-		}
+	if base != nil {
+		slog.Info("Database already exists", "name", name)
+		return nil
 	}
 
 	path := "/api/v2/meta/bases"
@@ -61,7 +53,7 @@ func (c *NocoClient) CreateBaseIfNotExists(name string) error {
 		return fmt.Errorf("failed to join URL: %w", err)
 	}
 
-	base := Base{
+	base = &Base{
 		Title: name,
 	}
 	base.Sources = append(base.Sources, Source{
@@ -157,4 +149,66 @@ func (c *NocoClient) listBases() (*BaseList, error) {
 	}
 
 	return &bases, nil
+}
+
+func (c *NocoClient) getBase(name string) (*Base, error) {
+	bases, err := c.listBases()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list databases: %w", err)
+	}
+
+	for _, base := range bases.List {
+		if base.Title == name {
+			slog.Info("Base found", "name", name)
+			return &base, nil
+		}
+	}
+
+	return nil, nil
+}
+
+func (c *NocoClient) ListTables(baseName string) (*TableList, error) {
+	base, err := c.getBase(baseName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get database: %w", err)
+	}
+	if base == nil {
+		return nil, fmt.Errorf("database %s not found", baseName)
+	}
+
+	path := fmt.Sprintf("/api/v2/meta/bases/%s/tables", base.ID)
+	fullURL, err := url.JoinPath(c.URL, path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to join URL: %w", err)
+	}
+	client := NewHTTPClient(c.APIKey)
+	resp, err := client.Get(fullURL)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list tables: %w", err)
+	}
+	defer resp.Body.Close()
+
+	tables := &TableList{}
+	if err := json.NewDecoder(resp.Body).Decode(tables); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return tables, nil
+}
+
+func (c *NocoClient) getTable(baseName, tableName string) (*Table, error) {
+	// List tables for the provided base.
+	tables, err := c.ListTables(baseName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list tables for base %s: %w", baseName, err)
+	}
+	// Iterate and find the matching table.
+	for _, table := range tables.List {
+		if table.Title == tableName {
+			slog.Info("Table found", "base", baseName, "table", tableName)
+			return &table, nil
+		}
+	}
+	return nil, fmt.Errorf("table %s not found in base %s", tableName, baseName)
 }

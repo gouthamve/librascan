@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/gouthamve/librascan/scripts/nocodb-management/nococlient"
+	"github.com/gouthamve/librascan/nococlient"
 	"github.com/spf13/cobra"
 )
 
@@ -29,8 +29,15 @@ var listCmd = &cobra.Command{
 			slog.Error("Error creating client", "error", err)
 			return
 		}
-		if err := client.ListBases(); err != nil {
+		bases, err := client.ListBases()
+		if err != nil {
 			slog.Error("Error listing bases", "error", err)
+			return
+		}
+
+		slog.Info("Bases loaded", "count", len(bases.List))
+		for _, base := range bases.List {
+			slog.Info("Base", "name", base.Title, "id", base.ID)
 		}
 	},
 }
@@ -67,6 +74,65 @@ var deleteCmd = &cobra.Command{
 	},
 }
 
+var tableCmd = &cobra.Command{
+	Use:   "table",
+	Short: "Manage tables within a base",
+}
+
+var tableListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List all tables in the base",
+	Run: func(cmd *cobra.Command, args []string) {
+		client, err := nococlient.NewNocoClient(nocoURL, apiKey)
+		if err != nil {
+			slog.Error("Error creating client", "error", err)
+			return
+		}
+
+		tables, err := client.ListTables(baseName)
+		if err != nil {
+			slog.Error("Error listing tables", "error", err)
+			return
+		}
+
+		slog.Info("Tables loaded", "count", len(tables.List))
+		for _, table := range tables.List {
+			slog.Info("Table", "name", table.TableName, "id", table.ID)
+		}
+	},
+}
+
+var tableCreateCmd = &cobra.Command{
+	Use:   "create",
+	Short: "Create a new table",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+
+		// client, err := nococlient.NewNocoClient(nocoURL, apiKey)
+		// if err != nil {
+		// 	slog.Error("Error creating client", "error", err)
+		// 	return
+		// }
+		// // TODO: call client.CreateTable(args[0]) when implemented
+		// slog.Info("Creating table (not implemented)", "table", args[0])
+	},
+}
+
+var tableDeleteCmd = &cobra.Command{
+	Use:   "delete",
+	Short: "Delete an existing table",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		// client, err := nococlient.NewNocoClient(nocoURL, apiKey)
+		// if err != nil {
+		// 	slog.Error("Error creating client", "error", err)
+		// 	return
+		// }
+		// // TODO: call client.DeleteTable(args[0]) when implemented
+		// slog.Info("Deleting table (not implemented)", "table", args[0])
+	},
+}
+
 func init() {
 	rootCmd.PersistentFlags().StringVar(&apiKey, "apikey", "", "API key")
 	rootCmd.PersistentFlags().StringVar(&nocoURL, "noco-url", "", "Noco base URL")
@@ -75,6 +141,10 @@ func init() {
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(createCmd)
 	rootCmd.AddCommand(deleteCmd)
+
+	// Add table commands
+	tableCmd.AddCommand(tableListCmd, tableCreateCmd, tableDeleteCmd)
+	rootCmd.AddCommand(tableCmd)
 }
 
 func main() {
