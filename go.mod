@@ -3,6 +3,7 @@ module github.com/gouthamve/librascan
 go 1.23
 
 require (
+	github.com/boombuler/barcode v1.0.2
 	github.com/labstack/echo/v4 v4.13.3
 	github.com/pressly/goose/v3 v3.24.1
 	github.com/prometheus/client_golang v1.20.5

@@ -11,6 +11,34 @@ func init() {
 	goose.AddMigrationContext(Up0001, Down0001)
 }
 
+var (
+	Shelfs = []struct {
+		Name string
+		Rows int
+	}{
+		{
+			Name: "office-big",
+			Rows: 6,
+		},
+		{
+			Name: "office-small",
+			Rows: 7,
+		},
+		{
+			Name: "home-living-room",
+			Rows: 4,
+		},
+		{
+			Name: "home-bedroom-left",
+			Rows: 6,
+		},
+		{
+			Name: "home-bedroom-right",
+			Rows: 6,
+		},
+	}
+)
+
 func Up0001(ctx context.Context, tx *sql.Tx) error {
 	query := `
 CREATE TABLE shelfs (
@@ -58,40 +86,15 @@ CREATE TABLE categories (
 		return err
 	}
 
-	shelfs := []struct {
-		name string
-		rows int
-	}{
-		{
-			name: "office-big",
-			rows: 6,
-		},
-		{
-			name: "office-small",
-			rows: 7,
-		},
-		{
-			name: "home-living-room",
-			rows: 4,
-		},
-		{
-			name: "home-bedroom-left",
-			rows: 6,
-		},
-		{
-			name: "home-bedroom-right",
-			rows: 6,
-		},
-	}
 	query = `INSERT INTO shelfs (id, name, rows_count) VALUES (0, "unknown", 0);`
 	_, err = tx.ExecContext(ctx, query)
 	if err != nil {
 		return err
 	}
 
-	for _, shelf := range shelfs {
+	for _, shelf := range Shelfs {
 		query = `INSERT INTO shelfs (name, rows_count) VALUES (?, ?);`
-		_, err = tx.ExecContext(ctx, query, shelf.name, shelf.rows)
+		_, err = tx.ExecContext(ctx, query, shelf.Name, shelf.Rows)
 		if err != nil {
 			return err
 		}
