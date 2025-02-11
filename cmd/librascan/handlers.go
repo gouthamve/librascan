@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 
 	_ "modernc.org/sqlite"
@@ -67,6 +68,26 @@ func (ls *librascan) AddBookFromISBN(c echo.Context) error {
 
 	isbn = strings.ReplaceAll(isbn, "-", "")
 
+	// Read and validate query parameters.
+	shelfID := 0
+	rowNumber := 0
+	var err error
+
+	rowNumberStr := c.QueryParam("row_number")
+	shelfIDStr := c.QueryParam("shelf_id")
+	if rowNumberStr != "" {
+		rowNumber, err = strconv.Atoi(rowNumberStr)
+		if err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid row_number"})
+		}
+	}
+	if shelfIDStr != "" {
+		shelfID, err = strconv.Atoi(shelfIDStr)
+		if err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid shelf_id"})
+		}
+	}
+
 	gb := GoogleBook{}
 	ol := OpenLibraryBook{}
 
@@ -83,24 +104,29 @@ func (ls *librascan) AddBookFromISBN(c echo.Context) error {
 	book := createBookFromAPIData(gb, ol)
 	book.ISBN = isbn
 
+	// Updated INSERT statement with row_id and shelf_id.
 	_, err = ls.db.Exec(`
-		INSERT INTO books (isbn, title, description, authors, categories, publisher, published_date, pages, language, cover_url)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		INSERT INTO books 
+		(isbn, title, description, authors, categories, publisher, published_date, pages, language, cover_url, row_number, shelf_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(isbn) DO UPDATE SET
+			row_number = excluded.row_number,
+			shelf_id = excluded.shelf_id`,
 		book.ISBN, book.Title, book.Description, strings.Join(book.Author, ","),
 		strings.Join(book.Categories, ","), book.Publisher, book.PublishedDate,
-		book.Pages, book.Language, book.CoverURL)
+		book.Pages, book.Language, book.CoverURL, rowNumber, shelfID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	for _, author := range book.Author {
-		_, err = ls.db.Exec("INSERT INTO authors (isbn, name) VALUES (?, ?)", book.ISBN, author)
+		_, err = ls.db.Exec("INSERT OR IGNORE INTO authors (isbn, name) VALUES (?, ?)", book.ISBN, author)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}
 	}
 
 	for _, category := range book.Categories {
-		_, err = ls.db.Exec("INSERT INTO categories (isbn, name) VALUES (?, ?)", book.ISBN, category)
+		_, err = ls.db.Exec("INSERT OR IGNORE INTO categories (isbn, name) VALUES (?, ?)", book.ISBN, category)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}
@@ -201,4 +227,34 @@ func getBookFromOpenLibrary(isbn string) (*OpenLibraryResponse, error) {
 	}
 
 	return &response, nil
+}
+
+// Add a new handler to lookup shelf name by id.
+func (ls *librascan) LookupShelfNameHandler(c echo.Context) error {
+	shelfIDStr := c.Param("id")
+	if shelfIDStr == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Shelf id is required"})
+	}
+	shelfID, err := strconv.Atoi(shelfIDStr)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid shelf id"})
+	}
+
+	var shelfName string
+	var rowCount int
+	err = ls.db.QueryRow("SELECT name, rows_count FROM shelfs WHERE id = ?", shelfID).Scan(&shelfName, &rowCount)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "shelf not found"})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "query error: " + err.Error()})
+	}
+
+	shelf := Shelf{
+		ID:       shelfID,
+		Name:     shelfName,
+		RowCount: rowCount,
+	}
+
+	return c.JSON(http.StatusOK, shelf)
 }

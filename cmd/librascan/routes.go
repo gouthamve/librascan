@@ -24,4 +24,6 @@ func SetupRoutes(e *echo.Echo, requestsTotal prometheus.Counter, db *sql.DB) {
 
 	e.GET("/debug/lookup/:isbn", ls.LookupBookHandler)
 	e.POST("/books/:isbn", ls.AddBookFromISBN)
+	// New route to lookup shelf name from id
+	e.GET("/shelf/:id", ls.LookupShelfNameHandler)
 }

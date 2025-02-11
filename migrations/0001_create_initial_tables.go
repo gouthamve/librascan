@@ -13,6 +13,13 @@ func init() {
 
 func Up0001(ctx context.Context, tx *sql.Tx) error {
 	query := `
+CREATE TABLE shelfs (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	name TEXT,
+	rows_count INTEGER,
+	UNIQUE(name)
+);
+
 CREATE TABLE books (
 	ISBN INTEGER PRIMARY KEY,
 	title TEXT,
@@ -23,13 +30,17 @@ CREATE TABLE books (
 	published_date TEXT,
 	pages INTEGER,
 	language TEXT,
-	cover_url TEXT
+	cover_url TEXT,
+	shelf_id INTEGER,
+	row_number INTEGER,
+	FOREIGN KEY(shelf_id) REFERENCES shelfs(id)
 );
 
 CREATE TABLE authors (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT,
 	isbn INTEGER,
+	UNIQUE(name, isbn),
 	FOREIGN KEY(isbn) REFERENCES books(ISBN)
 );
 
@@ -37,16 +48,61 @@ CREATE TABLE categories (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	name TEXT,
 	isbn INTEGER,
+	UNIQUE(name, isbn),
 	FOREIGN KEY(isbn) REFERENCES books(ISBN)
 );
 `
 
 	_, err := tx.ExecContext(ctx, query)
-	return err
+	if err != nil {
+		return err
+	}
+
+	shelfs := []struct {
+		name string
+		rows int
+	}{
+		{
+			name: "office-big",
+			rows: 6,
+		},
+		{
+			name: "office-small",
+			rows: 7,
+		},
+		{
+			name: "home-living-room",
+			rows: 4,
+		},
+		{
+			name: "home-bedroom-left",
+			rows: 6,
+		},
+		{
+			name: "home-bedroom-right",
+			rows: 6,
+		},
+	}
+	query = `INSERT INTO shelfs (id, name, rows_count) VALUES (0, "unknown", 0);`
+	_, err = tx.ExecContext(ctx, query)
+	if err != nil {
+		return err
+	}
+
+	for _, shelf := range shelfs {
+		query = `INSERT INTO shelfs (name, rows_count) VALUES (?, ?);`
+		_, err = tx.ExecContext(ctx, query, shelf.name, shelf.rows)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func Down0001(ctx context.Context, tx *sql.Tx) error {
 	query := `
+DROP TABLE IF EXISTS shelfs;
 DROP TABLE IF EXISTS categories;
 DROP TABLE IF EXISTS authors;
 DROP TABLE IF EXISTS books;
