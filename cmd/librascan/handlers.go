@@ -112,13 +112,13 @@ func (ls *librascan) AddBookFromISBN(c echo.Context) error {
 		ON CONFLICT(isbn) DO UPDATE SET
 			row_number = excluded.row_number,
 			shelf_id = excluded.shelf_id`,
-		book.ISBN, book.Title, book.Description, strings.Join(book.Author, ","),
-		strings.Join(book.Categories, ","), book.Publisher, book.PublishedDate,
+		book.ISBN, book.Title, book.Description, fmt.Sprintf("jsonb_array(%s)", strings.Join(book.Authors, ",")),
+		fmt.Sprintf("jsonb_array(%s)", strings.Join(book.Categories, ",")), book.Publisher, book.PublishedDate,
 		book.Pages, book.Language, book.CoverURL, rowNumber, shelfID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
-	for _, author := range book.Author {
+	for _, author := range book.Authors {
 		_, err = ls.db.Exec("INSERT OR IGNORE INTO authors (isbn, name) VALUES (?, ?)", book.ISBN, author)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -141,7 +141,7 @@ func createBookFromAPIData(gb GoogleBook, ol OpenLibraryBook) Book {
 	if gb.ID != "" {
 		book.Title = gb.VolumeInfo.Title
 		book.Description = gb.VolumeInfo.Description
-		book.Author = gb.VolumeInfo.Authors
+		book.Authors = gb.VolumeInfo.Authors
 		book.Categories = gb.VolumeInfo.Categories
 		book.Publisher = gb.VolumeInfo.Publisher
 		book.PublishedDate = gb.VolumeInfo.PublishedDate
@@ -160,9 +160,9 @@ func createBookFromAPIData(gb GoogleBook, ol OpenLibraryBook) Book {
 			return book
 		}
 		book.Title = ol.Title
-		book.Author = []string{}
+		book.Authors = []string{}
 		for _, author := range ol.Authors {
-			book.Author = append(book.Author, author.Name)
+			book.Authors = append(book.Authors, author.Name)
 		}
 		book.Publisher = ol.Publishers[0].Name
 		book.PublishedDate = ol.PublishDate

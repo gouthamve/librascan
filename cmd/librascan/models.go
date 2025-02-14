@@ -113,7 +113,7 @@ type Book struct {
 	ISBN          string   `json:"isbn"`
 	Title         string   `json:"title"`
 	Description   string   `json:"description"`
-	Author        []string `json:"author"`
+	Authors       []string `json:"authors"`
 	Publisher     string   `json:"publisher"`
 	PublishedDate string   `json:"published_date"`
 	Categories    []string `json:"categories"`
