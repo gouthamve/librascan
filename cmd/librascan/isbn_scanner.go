@@ -18,18 +18,16 @@ func readBookInfo(serverURL string) {
 
 	for {
 		fmt.Print("Enter ISBN13 or shelfCode: ")
-		var isbn string
-		fmt.Scanln(&isbn)
-		if len(isbn) != 13 && len(isbn) != 5 {
-			fmt.Println("Invalid ISBN")
-			continue
-		}
+		var input string
+		fmt.Scanln(&input)
 
-		if len(isbn) == 5 {
+		// EAN Codes can be 8 or 13 digits long.
+		// We are using the 8 digit EAN codes for shelf codes.
+		if len(input) == 8 {
 			prevShelf := shelf
 			prevRow := rowNumber
 
-			shelf, rowNumber, err = getShelfFromCode(serverURL, isbn)
+			shelf, rowNumber, err = getShelfFromCode(serverURL, input)
 			if err != nil {
 				slog.Error("cannot get shelf; using previous shelf", "error", err, "prev_shelf", prevShelf.Name)
 				shelf = prevShelf
@@ -41,13 +39,13 @@ func readBookInfo(serverURL string) {
 			continue
 		}
 
-		if len(isbn) != 13 {
+		if len(input) != 13 {
 			fmt.Println("Invalid ISBN")
 			continue
 		}
 
-		fmt.Println("ISBN:", isbn, "Shelf:", shelf.Name, "Row:", rowNumber)
-		ingestBook(serverURL, isbn, shelf.ID, rowNumber)
+		fmt.Println("ISBN:", input, "Shelf:", shelf.Name, "Row:", rowNumber)
+		ingestBook(serverURL, input, shelf.ID, rowNumber)
 	}
 }
 
@@ -80,17 +78,18 @@ func ingestBook(serverURL, isbn string, shelfID, rowNumber int) {
 	}
 }
 
-func getShelfFromCode(serverURL, shelfCode string) (Shelf, int, error) {
-	// Last char is the row_number.
-	rowNumberStr := shelfCode[len(shelfCode)-1:]
-	rowNumber, err := strconv.Atoi(rowNumberStr)
+func getShelfFromCode(serverURL, shelfCodeStr string) (Shelf, int, error) {
+	shelfCode, err := strconv.Atoi(shelfCodeStr)
 	if err != nil {
-		return Shelf{}, 0, fmt.Errorf("invalid row number: %w", err)
+		return Shelf{}, 0, fmt.Errorf("invalid shelf code: %w", err)
 	}
+	// The last digit is a checksum.
+	shelfCode /= 10
 
-	shelfID := shelfCode[:len(shelfCode)-1]
+	rowNumber := shelfCode % 10
+	shelfID := shelfCode / 10
 
-	fullURL := fmt.Sprintf("%s/shelf/%s", serverURL, shelfID)
+	fullURL := fmt.Sprintf("%s/shelf/%d", serverURL, shelfID)
 	resp, err := http.Get(fullURL)
 	if err != nil {
 		return Shelf{}, 0, fmt.Errorf("cannot get shelf: %w", err)

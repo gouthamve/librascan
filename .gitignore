@@ -26,3 +26,9 @@ go.work.sum
 .env
 librascan.db
 barcode.png
+barcode.*.png
+barcode*.png
+litestream.yml
+.db/librascan.db.tmp-shm
+.db/librascan.db.tmp-wal
+.DS_Store

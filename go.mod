@@ -4,6 +4,8 @@ go 1.23
 
 require (
 	github.com/boombuler/barcode v1.0.2
+	github.com/disintegration/imaging v1.6.2
+	github.com/fogleman/gg v1.3.0
 	github.com/labstack/echo/v4 v4.13.3
 	github.com/pressly/goose/v3 v3.24.1
 	github.com/prometheus/client_golang v1.20.5
@@ -15,6 +17,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
@@ -35,10 +38,11 @@ require (
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.31.0 // indirect
+	golang.org/x/image v0.24.0 // indirect
 	golang.org/x/net v0.33.0 // indirect
-	golang.org/x/sync v0.10.0 // indirect
+	golang.org/x/sync v0.11.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
-	golang.org/x/text v0.21.0 // indirect
+	golang.org/x/text v0.22.0 // indirect
 	golang.org/x/time v0.8.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 	modernc.org/gc/v3 v3.0.0-20240107210532-573471604cb6 // indirect
