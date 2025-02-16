@@ -1,4 +1,4 @@
-package main
+package models
 
 type GoogleBooksResponse struct {
 	Kind       string       `json:"kind"`
@@ -120,6 +120,10 @@ type Book struct {
 	Pages         int      `json:"pages"`
 	Language      string   `json:"language"`
 	CoverURL      string   `json:"cover"`
+
+	ShelfID   int `json:"shelf_id"`
+	ShelfName string
+	RowNumber int `json:"row_number"`
 }
 
 type Shelf struct {

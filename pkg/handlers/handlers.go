@@ -1,4 +1,4 @@
-package main
+package handlers
 
 import (
 	"database/sql"
@@ -13,18 +13,20 @@ import (
 	_ "modernc.org/sqlite"
 
 	"github.com/labstack/echo/v4"
+
+	"github.com/gouthamve/librascan/pkg/models"
 )
 
-type librascan struct {
+type Librascan struct {
 	db *sql.DB
 }
 
-func newLibrascan(db *sql.DB) *librascan {
-	return &librascan{db: db}
+func NewLibrascan(db *sql.DB) *Librascan {
+	return &Librascan{db: db}
 }
 
 // LookupBookHandler handles requests for a book lookup by ISBN using Open Library API.
-func (ls *librascan) LookupBookHandler(c echo.Context) error {
+func (ls *Librascan) LookupBookHandler(c echo.Context) error {
 	isbn := c.Param("isbn")
 	if isbn == "" {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "ISBN is required"})
@@ -32,8 +34,8 @@ func (ls *librascan) LookupBookHandler(c echo.Context) error {
 
 	isbn = strings.ReplaceAll(isbn, "-", "") // Remove any hyphens from ISBN
 
-	gb := GoogleBook{}
-	ol := OpenLibraryBook{}
+	gb := models.GoogleBook{}
+	ol := models.OpenLibraryBook{}
 
 	googleBookResp, err := getBookFromGoogleBooks(isbn)
 	if err == nil && googleBookResp.TotalItems > 0 {
@@ -52,7 +54,7 @@ func (ls *librascan) LookupBookHandler(c echo.Context) error {
 	book := createBookFromAPIData(gb, ol)
 	book.ISBN = isbn
 
-	return c.JSONPretty(http.StatusOK, DebugResponse{
+	return c.JSONPretty(http.StatusOK, models.DebugResponse{
 		Book:                book,
 		GoogleBooksResponse: googleBookResp,
 		OpenLibraryResponse: openLibraryBookResp,
@@ -60,7 +62,7 @@ func (ls *librascan) LookupBookHandler(c echo.Context) error {
 }
 
 // AddBookFromISBN handles requests to add a book to the database by looking up its ISBN.
-func (ls *librascan) AddBookFromISBN(c echo.Context) error {
+func (ls *Librascan) AddBookFromISBN(c echo.Context) error {
 	isbn := c.Param("isbn")
 	if isbn == "" {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "ISBN is required"})
@@ -88,8 +90,8 @@ func (ls *librascan) AddBookFromISBN(c echo.Context) error {
 		}
 	}
 
-	gb := GoogleBook{}
-	ol := OpenLibraryBook{}
+	gb := models.GoogleBook{}
+	ol := models.OpenLibraryBook{}
 
 	googleBookResp, err := getBookFromGoogleBooks(isbn)
 	if err == nil && googleBookResp.TotalItems > 0 {
@@ -103,40 +105,47 @@ func (ls *librascan) AddBookFromISBN(c echo.Context) error {
 
 	book := createBookFromAPIData(gb, ol)
 	book.ISBN = isbn
+	book.RowNumber = rowNumber
+	book.ShelfID = shelfID
 
-	// Updated INSERT statement with row_id and shelf_id.
-	_, err = ls.db.Exec(`
-		INSERT INTO books 
-		(isbn, title, description, authors, categories, publisher, published_date, pages, language, cover_url, row_number, shelf_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(isbn) DO UPDATE SET
-			row_number = excluded.row_number,
-			shelf_id = excluded.shelf_id`,
-		book.ISBN, book.Title, book.Description, fmt.Sprintf("jsonb_array(%s)", strings.Join(book.Authors, ",")),
-		fmt.Sprintf("jsonb_array(%s)", strings.Join(book.Categories, ",")), book.Publisher, book.PublishedDate,
-		book.Pages, book.Language, book.CoverURL, rowNumber, shelfID)
-	if err != nil {
+	if err := storeBook(ls.db, book); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
-	}
-	for _, author := range book.Authors {
-		_, err = ls.db.Exec("INSERT OR IGNORE INTO authors (isbn, name) VALUES (?, ?)", book.ISBN, author)
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		}
-	}
-
-	for _, category := range book.Categories {
-		_, err = ls.db.Exec("INSERT OR IGNORE INTO categories (isbn, name) VALUES (?, ?)", book.ISBN, category)
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		}
 	}
 
 	return c.JSON(http.StatusCreated, book)
 }
 
-func createBookFromAPIData(gb GoogleBook, ol OpenLibraryBook) Book {
-	book := Book{}
+// GetBookByISBN handles fetching a book from the database by ISBN.
+func (ls *Librascan) GetBookByISBN(c echo.Context) error {
+	isbnStr := c.Param("isbn")
+	if isbnStr == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "ISBN is required"})
+	}
+
+	isbnStr = strings.ReplaceAll(isbnStr, "-", "")
+	if len(isbnStr) != 13 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid ISBN"})
+	}
+
+	isbn, err := strconv.Atoi(isbnStr)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid ISBN"})
+	}
+
+	var book models.Book
+	book, err = getBook(ls.db, isbn)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "Book not found"})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Query error: " + err.Error()})
+	}
+
+	return c.JSON(http.StatusOK, book)
+}
+
+func createBookFromAPIData(gb models.GoogleBook, ol models.OpenLibraryBook) models.Book {
+	book := models.Book{}
 
 	if gb.ID != "" {
 		book.Title = gb.VolumeInfo.Title
@@ -171,7 +180,7 @@ func createBookFromAPIData(gb GoogleBook, ol OpenLibraryBook) Book {
 	return book
 }
 
-func getBookFromGoogleBooks(isbn string) (*GoogleBooksResponse, error) {
+func getBookFromGoogleBooks(isbn string) (*models.GoogleBooksResponse, error) {
 	url := fmt.Sprintf("https://www.googleapis.com/books/v1/volumes?q=isbn:%s", isbn)
 	resp, err := http.Get(url)
 	if err != nil {
@@ -188,7 +197,7 @@ func getBookFromGoogleBooks(isbn string) (*GoogleBooksResponse, error) {
 		return nil, err
 	}
 
-	var response GoogleBooksResponse
+	var response models.GoogleBooksResponse
 	if err := json.Unmarshal(body, &response); err != nil {
 		return nil, fmt.Errorf("failed to parse response")
 	}
@@ -200,7 +209,7 @@ func getBookFromGoogleBooks(isbn string) (*GoogleBooksResponse, error) {
 	return &response, nil
 }
 
-func getBookFromOpenLibrary(isbn string) (*OpenLibraryResponse, error) {
+func getBookFromOpenLibrary(isbn string) (*models.OpenLibraryResponse, error) {
 	url := fmt.Sprintf("https://openlibrary.org/api/books?bibkeys=ISBN:%s&format=json&jscmd=data", isbn)
 	resp, err := http.Get(url)
 	if err != nil {
@@ -221,7 +230,7 @@ func getBookFromOpenLibrary(isbn string) (*OpenLibraryResponse, error) {
 		return nil, fmt.Errorf("book not found")
 	}
 
-	var response OpenLibraryResponse
+	var response models.OpenLibraryResponse
 	if err := json.Unmarshal(body, &response); err != nil {
 		return nil, fmt.Errorf("failed to parse response")
 	}
@@ -230,7 +239,7 @@ func getBookFromOpenLibrary(isbn string) (*OpenLibraryResponse, error) {
 }
 
 // Add a new handler to lookup shelf name by id.
-func (ls *librascan) LookupShelfNameHandler(c echo.Context) error {
+func (ls *Librascan) LookupShelfNameHandler(c echo.Context) error {
 	shelfIDStr := c.Param("id")
 	if shelfIDStr == "" {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Shelf id is required"})
@@ -250,11 +259,104 @@ func (ls *librascan) LookupShelfNameHandler(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "query error: " + err.Error()})
 	}
 
-	shelf := Shelf{
+	shelf := models.Shelf{
 		ID:       shelfID,
 		Name:     shelfName,
 		RowCount: rowCount,
 	}
 
 	return c.JSON(http.StatusOK, shelf)
+}
+
+func storeBook(db *sql.DB, book models.Book) error {
+	_, err := db.Exec(`
+		INSERT INTO books 
+		(isbn, title, description, publisher, published_date, pages, language, cover_url, row_number, shelf_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(isbn) DO UPDATE SET
+			row_number = excluded.row_number,
+			shelf_id = excluded.shelf_id`,
+		book.ISBN, book.Title, book.Description, book.Publisher, book.PublishedDate,
+		book.Pages, book.Language, book.CoverURL, book.RowNumber, book.ShelfID)
+	if err != nil {
+		return err
+	}
+	for _, author := range book.Authors {
+		_, err = db.Exec("INSERT OR IGNORE INTO authors (isbn, name) VALUES (?, ?)", book.ISBN, author)
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, category := range book.Categories {
+		_, err = db.Exec("INSERT OR IGNORE INTO categories (isbn, name) VALUES (?, ?)", book.ISBN, category)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func getBook(db *sql.DB, isbn int) (models.Book, error) {
+	var book models.Book
+	row := db.QueryRow("SELECT isbn, title, description, publisher, published_date, pages, language, cover_url, row_number, shelf_id FROM books WHERE isbn = ?", isbn)
+	err := row.Scan(&book.ISBN, &book.Title, &book.Description, &book.Publisher, &book.PublishedDate, &book.Pages, &book.Language, &book.CoverURL, &book.RowNumber, &book.ShelfID)
+	if err != nil {
+		return models.Book{}, err
+	}
+
+	authors, err := getAuthors(db, isbn)
+	if err != nil {
+		return models.Book{}, err
+	}
+	book.Authors = authors
+
+	categories, err := getCategories(db, isbn)
+	if err != nil {
+		return models.Book{}, err
+	}
+	book.Categories = categories
+
+	row = db.QueryRow("SELECT name FROM shelfs WHERE id = ?", book.ShelfID)
+	err = row.Scan(&book.ShelfName)
+	if err != nil {
+		return book, err
+	}
+
+	return book, nil
+}
+
+func getAuthors(db *sql.DB, isbn int) ([]string, error) {
+	rows, err := db.Query("SELECT name FROM authors WHERE isbn = ?", isbn)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var authors []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		authors = append(authors, name)
+	}
+	return authors, rows.Err()
+}
+
+func getCategories(db *sql.DB, isbn int) ([]string, error) {
+	rows, err := db.Query("SELECT name FROM categories WHERE isbn = ?", isbn)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var categories []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		categories = append(categories, name)
+	}
+	return categories, rows.Err()
 }

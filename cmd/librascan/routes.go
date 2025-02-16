@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 
+	"github.com/gouthamve/librascan/pkg/handlers"
 	"github.com/labstack/echo/v4"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -20,10 +21,13 @@ func SetupRoutes(e *echo.Echo, requestsTotal prometheus.Counter, db *sql.DB) {
 	// Prometheus metrics endpoint wrapped for Echo
 	e.GET("/metrics", echo.WrapHandler(promhttp.Handler()))
 
-	ls := newLibrascan(db)
+	ls := handlers.NewLibrascan(db)
 
 	e.GET("/debug/lookup/:isbn", ls.LookupBookHandler)
+
 	e.POST("/books/:isbn", ls.AddBookFromISBN)
+	e.GET("/books/:isbn", ls.GetBookByISBN)
+
 	// New route to lookup shelf name from id
 	e.GET("/shelf/:id", ls.LookupShelfNameHandler)
 }

@@ -21,7 +21,7 @@ var requestsTotal = prometheus.NewCounter(
 	},
 )
 
-var database = "./librascan.db"
+var database = "./.db/librascan.db"
 
 func init() {
 	// Register the custom metric

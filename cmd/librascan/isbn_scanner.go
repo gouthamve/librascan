@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+
+	"github.com/gouthamve/librascan/pkg/models"
 )
 
 func readBookInfo(serverURL string) {
@@ -65,7 +67,7 @@ func ingestBook(serverURL, isbn string, shelfID, rowNumber int) {
 		}
 		fmt.Println("Body:", string(body))
 	} else {
-		book := Book{}
+		book := models.Book{}
 		if err := json.NewDecoder(resp.Body).Decode(&book); err != nil {
 			slog.Error("cannot decode response body", "error", err)
 		}
@@ -78,10 +80,10 @@ func ingestBook(serverURL, isbn string, shelfID, rowNumber int) {
 	}
 }
 
-func getShelfFromCode(serverURL, shelfCodeStr string) (Shelf, int, error) {
+func getShelfFromCode(serverURL, shelfCodeStr string) (models.Shelf, int, error) {
 	shelfCode, err := strconv.Atoi(shelfCodeStr)
 	if err != nil {
-		return Shelf{}, 0, fmt.Errorf("invalid shelf code: %w", err)
+		return models.Shelf{}, 0, fmt.Errorf("invalid shelf code: %w", err)
 	}
 	// The last digit is a checksum.
 	shelfCode /= 10
@@ -92,15 +94,15 @@ func getShelfFromCode(serverURL, shelfCodeStr string) (Shelf, int, error) {
 	fullURL := fmt.Sprintf("%s/shelf/%d", serverURL, shelfID)
 	resp, err := http.Get(fullURL)
 	if err != nil {
-		return Shelf{}, 0, fmt.Errorf("cannot get shelf: %w", err)
+		return models.Shelf{}, 0, fmt.Errorf("cannot get shelf: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode/100 != 2 {
-		return Shelf{}, 0, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return models.Shelf{}, 0, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	shelf := Shelf{}
+	shelf := models.Shelf{}
 	json.NewDecoder(resp.Body).Decode(&shelf)
 	return shelf, rowNumber, nil
 }
