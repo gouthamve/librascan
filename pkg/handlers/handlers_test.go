@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"database/sql"
-	"strconv"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -37,7 +36,7 @@ func TestDatabase(t *testing.T) {
 
 	// Create a new book
 	book := models.Book{
-		ISBN:          "9780141182550",
+		ISBN:          9780141182550,
 		Title:         "1984",
 		Description:   "A dystopian novel by George Orwell",
 		Authors:       []string{"George Orwell"},
@@ -58,11 +57,10 @@ func TestDatabase(t *testing.T) {
 	}
 
 	// Retrieve the book from the database
-	isbn, err := strconv.Atoi(book.ISBN)
 	if err != nil {
 		t.Fatalf("failed to convert ISBN to int: %v", err)
 	}
-	book2, err := getBook(db, isbn)
+	book2, err := getBook(db, book.ISBN)
 	if err != nil {
 		t.Fatalf("failed to get book: %v", err)
 	}

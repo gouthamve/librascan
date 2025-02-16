@@ -5,29 +5,17 @@ import (
 	"log"
 	"os"
 
+	"github.com/labstack/echo-contrib/echoprometheus"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/pressly/goose/v3"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 
 	_ "github.com/gouthamve/librascan/migrations"
 	_ "modernc.org/sqlite"
 )
 
-var requestsTotal = prometheus.NewCounter(
-	prometheus.CounterOpts{
-		Name: "requests_total",
-		Help: "Total number of requests received",
-	},
-)
-
 var database = "./.db/librascan.db"
-
-func init() {
-	// Register the custom metric
-	prometheus.MustRegister(requestsTotal)
-}
 
 // serve runs migrations, starts the HTTP server and routes.
 func serve() {
@@ -56,9 +44,11 @@ func serve() {
 	// Initialize the Echo instance
 	e := echo.New()
 	e.Use(middleware.Logger())
+	e.Use(echoprometheus.NewMiddleware("librascan"))
+	e.GET("/metrics", echoprometheus.NewHandler())
 
 	// Setup routes in routes.go
-	SetupRoutes(e, requestsTotal, db)
+	SetupRoutes(e, db)
 
 	log.Println("Starting server on :8080")
 	e.Logger.Fatal(e.Start(":8080"))

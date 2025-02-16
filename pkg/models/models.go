@@ -110,7 +110,7 @@ type DebugResponse struct {
 }
 
 type Book struct {
-	ISBN          string   `json:"isbn"`
+	ISBN          int      `json:"isbn"`
 	Title         string   `json:"title"`
 	Description   string   `json:"description"`
 	Authors       []string `json:"authors"`
