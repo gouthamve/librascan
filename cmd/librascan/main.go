@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"log"
+	"os"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -30,6 +31,10 @@ func init() {
 
 // serve runs migrations, starts the HTTP server and routes.
 func serve() {
+	if err := os.MkdirAll("./.db", 0755); err != nil {
+		log.Fatalf("failed to create database directory: %v", err)
+	}
+
 	// Run the migrations
 	db, err := goose.OpenDBWithDriver("sqlite3", database)
 	if err != nil {
