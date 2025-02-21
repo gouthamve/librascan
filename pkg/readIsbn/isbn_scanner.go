@@ -1,4 +1,4 @@
-package main
+package readIsbn
 
 import (
 	"encoding/json"
@@ -10,13 +10,59 @@ import (
 	"strconv"
 
 	"github.com/gouthamve/librascan/pkg/models"
+	"github.com/labstack/echo-contrib/echoprometheus"
+	"github.com/labstack/echo/v4"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-func readBookInfo(serverURL string) {
-	shelf, rowNumber, err := getShelfFromCode(serverURL, "00000")
+var (
+	currentShelfGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "librascan_current_shelf",
+		Help: "The current shelf and row",
+	}, []string{"shelf", "shelfID", "row"})
+
+	booksProcessedCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "librascan_books_processed",
+		Help: "The total number of books processed",
+	})
+
+	booksFailedCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "librascan_books_failed",
+		Help: "The total number of books that failed to process",
+	})
+
+	librascanAPIRequests = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "librascan_api_requests",
+		Help:    "Histogram of API requests",
+		Buckets: prometheus.DefBuckets,
+	}, []string{"code", "method"})
+)
+
+func StartCLI(serverURL string) {
+	// Start an echo server and run Prometheus.
+	go func() {
+		e := echo.New()
+		e.Use(echoprometheus.NewMiddleware("librascan"))
+		e.GET("/metrics", echoprometheus.NewHandler())
+		e.Logger.Fatal(e.Start(":8080"))
+	}()
+
+	client := &http.Client{
+		Transport: http.DefaultTransport,
+	}
+	client.Transport = promhttp.InstrumentRoundTripperDuration(librascanAPIRequests, client.Transport)
+
+	inputLoop(client, serverURL)
+}
+
+func inputLoop(httpClient *http.Client, serverURL string) {
+	shelf, rowNumber, err := getShelfFromCode(httpClient, serverURL, "00000")
 	if err != nil {
 		log.Fatalln("Cannot get shelf:", err)
 	}
+	currentShelfGauge.WithLabelValues(shelf.Name, strconv.Itoa(shelf.ID), strconv.Itoa(rowNumber)).Set(1)
 
 	for {
 		fmt.Print("Enter ISBN13 or shelfCode: ")
@@ -29,12 +75,13 @@ func readBookInfo(serverURL string) {
 			prevShelf := shelf
 			prevRow := rowNumber
 
-			shelf, rowNumber, err = getShelfFromCode(serverURL, input)
+			shelf, rowNumber, err = getShelfFromCode(httpClient, serverURL, input)
 			if err != nil {
 				slog.Error("cannot get shelf; using previous shelf", "error", err, "prev_shelf", prevShelf.Name)
 				shelf = prevShelf
 				rowNumber = prevRow
 			} else {
+				currentShelfGauge.WithLabelValues(shelf.Name, strconv.Itoa(shelf.ID), strconv.Itoa(rowNumber)).Set(1)
 				slog.Info("Shelf changed", "shelf", shelf.Name, "row", rowNumber)
 			}
 
@@ -47,14 +94,14 @@ func readBookInfo(serverURL string) {
 		}
 
 		fmt.Println("ISBN:", input, "Shelf:", shelf.Name, "Row:", rowNumber)
-		ingestBook(serverURL, input, shelf.ID, rowNumber)
+		ingestBook(httpClient, serverURL, input, shelf.ID, rowNumber)
 	}
 }
 
-func ingestBook(serverURL, isbn string, shelfID, rowNumber int) {
+func ingestBook(httpClient *http.Client, serverURL, isbn string, shelfID, rowNumber int) {
 	// Use the provided serverURL instead of the hardcoded value.
 	fullURL := fmt.Sprintf("%s/books/%s?shelf_id=%d&row_number=%d", serverURL, isbn, shelfID, rowNumber)
-	resp, err := http.Post(fullURL, "application/json", io.Reader(nil))
+	resp, err := httpClient.Post(fullURL, "application/json", io.Reader(nil))
 	if err != nil {
 		slog.Error("cannot post ISBN", "error", err)
 	}
@@ -80,7 +127,7 @@ func ingestBook(serverURL, isbn string, shelfID, rowNumber int) {
 	}
 }
 
-func getShelfFromCode(serverURL, shelfCodeStr string) (models.Shelf, int, error) {
+func getShelfFromCode(httpClient *http.Client, serverURL, shelfCodeStr string) (models.Shelf, int, error) {
 	shelfCode, err := strconv.Atoi(shelfCodeStr)
 	if err != nil {
 		return models.Shelf{}, 0, fmt.Errorf("invalid shelf code: %w", err)
@@ -92,7 +139,7 @@ func getShelfFromCode(serverURL, shelfCodeStr string) (models.Shelf, int, error)
 	shelfID := shelfCode / 10
 
 	fullURL := fmt.Sprintf("%s/shelf/%d", serverURL, shelfID)
-	resp, err := http.Get(fullURL)
+	resp, err := httpClient.Get(fullURL)
 	if err != nil {
 		return models.Shelf{}, 0, fmt.Errorf("cannot get shelf: %w", err)
 	}

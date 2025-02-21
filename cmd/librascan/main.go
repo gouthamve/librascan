@@ -13,6 +13,8 @@ import (
 
 	_ "github.com/gouthamve/librascan/migrations"
 	_ "modernc.org/sqlite"
+
+	"github.com/gouthamve/librascan/pkg/readIsbn"
 )
 
 var database = "./.db/librascan.db"
@@ -77,7 +79,7 @@ func main() {
 			if err != nil {
 				log.Fatalln("cannot get server URL:", err)
 			}
-			readBookInfo(serverURL)
+			readIsbn.StartCLI(serverURL)
 		},
 	}
 	waitCmd.Flags().String("server-url", "http://localhost:8080", "Server URL for posting ISBNs")
