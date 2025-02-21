@@ -349,7 +349,9 @@ func createBookFromAPIData(gb models.GoogleBook, ol models.OpenLibraryBook) mode
 		for _, author := range ol.Authors {
 			book.Authors = append(book.Authors, author.Name)
 		}
-		book.Publisher = ol.Publishers[0].Name
+		if len(ol.Publishers) > 0 {
+			book.Publisher = ol.Publishers[0].Name
+		}
 		book.PublishedDate = ol.PublishDate
 	}
 

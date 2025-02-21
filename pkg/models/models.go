@@ -121,9 +121,9 @@ type Book struct {
 	Language      string   `json:"language"`
 	CoverURL      string   `json:"cover"`
 
-	ShelfID   int `json:"shelf_id"`
-	ShelfName string
-	RowNumber int `json:"row_number"`
+	ShelfID   int    `json:"shelf_id"`
+	ShelfName string `json:"shelf_name"`
+	RowNumber int    `json:"row_number"`
 }
 
 type Shelf struct {

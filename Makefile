@@ -12,7 +12,7 @@ docker-build:
 
 dev:
 	@echo "Starting rapid iteration mode..."
-	reflex -r '\.go$$' -s -- sh -c "go build -o librascan ./cmd/librascan && ./librascan serve"
+	reflex -r '\.go$$' -r '\.html$$' -r '\.js$$' -s -- sh -c "go build -o librascan ./cmd/librascan && ./librascan serve"
 
 setup-deps:
 	@echo "Installing dependencies..."
