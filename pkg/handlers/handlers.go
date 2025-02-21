@@ -215,6 +215,45 @@ func (ls *Librascan) LookupShelfNameHandler(c echo.Context) error {
 	return c.JSON(http.StatusOK, shelf)
 }
 
+// DeleteBookByISBN handles deletion of a book from the database by ISBN.
+func (ls *Librascan) DeleteBookByISBN(c echo.Context) error {
+	isbnStr := c.Param("isbn")
+	if isbnStr == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "ISBN is required"})
+	}
+
+	isbnStr = strings.ReplaceAll(isbnStr, "-", "")
+	if len(isbnStr) != 13 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid ISBN"})
+	}
+
+	isbn, err := strconv.Atoi(isbnStr)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid ISBN"})
+	}
+
+	rows, err := deleteBook(ls.db, isbn)
+
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	if rows == 0 {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Book not found"})
+	}
+
+	return c.NoContent(http.StatusNoContent)
+}
+
+func deleteBook(db *sql.DB, isbn int) (int64, error) {
+	result, err := db.Exec("DELETE FROM books WHERE isbn = ?", isbn)
+	if err != nil {
+		return 0, err
+	}
+
+	return result.RowsAffected()
+}
+
 func storeBook(db *sql.DB, book models.Book) error {
 	_, err := db.Exec(`
 		INSERT INTO books 

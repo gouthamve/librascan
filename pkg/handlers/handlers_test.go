@@ -69,4 +69,22 @@ func TestDatabase(t *testing.T) {
 	if diff := cmp.Diff(book, book2); diff != "" {
 		t.Errorf("mismatch (-want +got):\n%s", diff)
 	}
+
+	// Delete the book from the database
+	rows, err := deleteBook(db, book.ISBN)
+	if err != nil {
+		t.Fatalf("failed to delete book: %v", err)
+	}
+	if rows != 1 {
+		t.Fatalf("expected 1 row to be affected, got %d", rows)
+	}
+
+	// Retrieve the book from the database
+	book3, err := getBook(db, book.ISBN)
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+	if cmp.Diff(models.Book{}, book3) != "" {
+		t.Fatalf("expected empty book, got %v", book3)
+	}
 }

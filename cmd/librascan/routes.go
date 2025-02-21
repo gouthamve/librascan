@@ -22,6 +22,7 @@ func SetupRoutes(e *echo.Echo, db *sql.DB) {
 	e.POST("/books/:isbn", ls.AddBookFromISBN)
 	e.GET("/books/:isbn", ls.GetBookByISBN)
 	e.GET("/books", ls.GetAllBooks)
+	e.DELETE("/books/:isbn", ls.DeleteBookByISBN)
 
 	// New route to lookup shelf name from id
 	e.GET("/shelf/:id", ls.LookupShelfNameHandler)
