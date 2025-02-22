@@ -35,11 +35,11 @@ func (d *deviceInput) open() error {
 		if err != nil {
 			continue
 		}
-		if err := inputDevice.NonBlock(); err != nil {
-			fmt.Println("device nonblock error", err)
-			inputDevice.Close()
-			continue
-		}
+		// if err := inputDevice.NonBlock(); err != nil {
+		// 	fmt.Println("device nonblock error", err)
+		// 	inputDevice.Close()
+		// 	continue
+		// }
 
 		if err := inputDevice.Grab(); err != nil {
 			fmt.Println("device grab error", err)
