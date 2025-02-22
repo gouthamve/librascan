@@ -79,15 +79,15 @@ func main() {
 			if err != nil {
 				log.Fatalln("cannot get server URL:", err)
 			}
-			hookIntoScanner, err := cmd.Flags().GetBool("hookIntoScanner")
+			inputDevicePath, err := cmd.Flags().GetString("input-device-path")
 			if err != nil {
-				log.Fatalln("cannot get hookIntoScanner flag:", err)
+				log.Fatalln("cannot get inputPath flag:", err)
 			}
-			readIsbn.StartCLI(serverURL, hookIntoScanner)
+			readIsbn.StartCLI(serverURL, inputDevicePath)
 		},
 	}
 	waitCmd.Flags().String("server-url", "http://localhost:8080", "Server URL for posting ISBNs.")
-	waitCmd.Flags().Bool("hookIntoScanner", false, "Whether to hook into the scanner's udev device.")
+	waitCmd.Flags().String("input-device-path", "", "Path to the scanners udev device.")
 
 	rootCmd.AddCommand(serveCmd, waitCmd)
 	if err := rootCmd.Execute(); err != nil {

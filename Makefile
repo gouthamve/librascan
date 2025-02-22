@@ -17,4 +17,5 @@ dev:
 setup-deps:
 	@echo "Installing dependencies..."
 	go install github.com/cespare/reflex@latest
+	go install github.com/gokrazy/tools/cmd/gok@main
 	go mod tidy

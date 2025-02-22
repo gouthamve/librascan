@@ -40,7 +40,7 @@ var (
 	}, []string{"code", "method"})
 )
 
-func StartCLI(serverURL string, hookDevice bool) {
+func StartCLI(serverURL string, inputDevicePath string) {
 	// Start an echo server and run Prometheus.
 	go func() {
 		e := echo.New()
@@ -54,10 +54,10 @@ func StartCLI(serverURL string, hookDevice bool) {
 	}
 	client.Transport = promhttp.InstrumentRoundTripperDuration(librascanAPIRequests, client.Transport)
 
-	inputLoop(client, serverURL, hookDevice)
+	inputLoop(client, serverURL, inputDevicePath)
 }
 
-func inputLoop(httpClient *http.Client, serverURL string, hookDevice bool) {
+func inputLoop(httpClient *http.Client, serverURL string, inputDevicePath string) {
 	shelf, rowNumber, err := getShelfFromCode(httpClient, serverURL, "00000")
 	if err != nil {
 		log.Fatalln("Cannot get shelf:", err)
@@ -72,8 +72,8 @@ func inputLoop(httpClient *http.Client, serverURL string, hookDevice bool) {
 		return input
 	}
 
-	if hookDevice {
-		device, err := grabAndSetupDevice()
+	if inputDevicePath != "" {
+		device, err := grabAndSetupDevice(inputDevicePath)
 		if err != nil {
 			log.Fatalln("Cannot open device:", err)
 		}

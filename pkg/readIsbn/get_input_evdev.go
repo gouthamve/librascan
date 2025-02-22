@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	devicePath = "/dev/input/by-id/usb-Barcode_AFANDA_BARCODE_AFANDBARCODE-event-kbd"
+// devicePath = "/dev/input/by-id/usb-Barcode_AFANDA_BARCODE_AFANDBARCODE-event-kbd"
 )
 
 type deviceInput struct {
@@ -16,9 +16,9 @@ type deviceInput struct {
 	device     *evdev.InputDevice
 }
 
-func grabAndSetupDevice() (*deviceInput, error) {
+func grabAndSetupDevice(inputDevicePath string) (*deviceInput, error) {
 	di := &deviceInput{
-		devicePath: devicePath,
+		devicePath: inputDevicePath,
 	}
 
 	if err := di.open(); err != nil {
