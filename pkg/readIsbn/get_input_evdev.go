@@ -33,7 +33,6 @@ func (d *deviceInput) open() error {
 		time.Sleep(500 * time.Millisecond)
 		inputDevice, err := evdev.Open(d.devicePath)
 		if err != nil {
-			fmt.Println("device open error", err)
 			continue
 		}
 		if err := inputDevice.NonBlock(); err != nil {
