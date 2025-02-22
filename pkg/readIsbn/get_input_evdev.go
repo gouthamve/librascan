@@ -14,16 +14,21 @@ var (
 type deviceInput struct {
 	devicePath string
 	device     *evdev.InputDevice
+
+	bufferedCodes chan string
 }
 
 func grabAndSetupDevice(inputDevicePath string) (*deviceInput, error) {
 	di := &deviceInput{
-		devicePath: inputDevicePath,
+		devicePath:    inputDevicePath,
+		bufferedCodes: make(chan string, 100),
 	}
 
 	if err := di.open(); err != nil {
 		return nil, err
 	}
+
+	go di.readToBuffer()
 
 	return di, nil
 }
@@ -35,11 +40,11 @@ func (d *deviceInput) open() error {
 		if err != nil {
 			continue
 		}
-		// if err := inputDevice.NonBlock(); err != nil {
-		// 	fmt.Println("device nonblock error", err)
-		// 	inputDevice.Close()
-		// 	continue
-		// }
+		if err := inputDevice.NonBlock(); err != nil {
+			fmt.Println("device nonblock error", err)
+			inputDevice.Close()
+			continue
+		}
 
 		if err := inputDevice.Grab(); err != nil {
 			fmt.Println("device grab error", err)
@@ -49,42 +54,53 @@ func (d *deviceInput) open() error {
 
 		fmt.Println("device found and opened.")
 		d.device = inputDevice
+
 		return nil
 	}
+}
 
+func (d *deviceInput) readToBuffer() {
+	var barcode string
+
+	for {
+		// If device is not open, open it.
+		if _, err := d.device.Name(); err != nil {
+			fmt.Println("device name error", err)
+			// It's likely sleeping or not yet connected. This will wait for it to open.
+			for {
+				if err := d.open(); err == nil {
+					break
+				}
+			}
+		}
+
+		for {
+			ev, err := d.device.ReadOne()
+			if err != nil {
+				fmt.Println("device read error", err)
+
+				d.bufferedCodes <- barcode
+				barcode = ""
+				break
+			}
+
+			if ev.Type == evdev.EV_KEY && ev.Value == 1 {
+				if ev.Code == evdev.KEY_ENTER {
+					d.bufferedCodes <- barcode
+					barcode = ""
+					break
+				}
+			}
+
+			if ev.Type == evdev.EV_KEY && ev.Value == 1 {
+				barcode += eventToString(*ev)
+			}
+		}
+	}
 }
 
 func (d *deviceInput) read() string {
-	var barcode string
-	if _, err := d.device.Name(); err != nil {
-		fmt.Println("device name error", err)
-		// It's likely sleeping or not yet connected. This will wait for it to open.
-		for {
-			if err := d.open(); err == nil {
-				break
-			}
-		}
-	}
-
-	for {
-		ev, err := d.device.ReadOne()
-		if err != nil {
-			fmt.Println("device read error", err)
-			return barcode
-		}
-
-		if ev.Type == evdev.EV_KEY && ev.Value == 1 {
-			if ev.Code == evdev.KEY_ENTER {
-				break
-			}
-		}
-
-		if ev.Type == evdev.EV_KEY && ev.Value == 1 {
-			barcode += eventToString(*ev)
-		}
-	}
-
-	return barcode
+	return <-d.bufferedCodes
 }
 
 func eventToString(ev evdev.InputEvent) string {
