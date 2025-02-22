@@ -40,7 +40,7 @@ var (
 	}, []string{"code", "method"})
 )
 
-func StartCLI(serverURL string) {
+func StartCLI(serverURL string, hookDevice bool) {
 	// Start an echo server and run Prometheus.
 	go func() {
 		e := echo.New()
@@ -54,20 +54,41 @@ func StartCLI(serverURL string) {
 	}
 	client.Transport = promhttp.InstrumentRoundTripperDuration(librascanAPIRequests, client.Transport)
 
-	inputLoop(client, serverURL)
+	inputLoop(client, serverURL, hookDevice)
 }
 
-func inputLoop(httpClient *http.Client, serverURL string) {
+func inputLoop(httpClient *http.Client, serverURL string, hookDevice bool) {
 	shelf, rowNumber, err := getShelfFromCode(httpClient, serverURL, "00000")
 	if err != nil {
 		log.Fatalln("Cannot get shelf:", err)
 	}
 	currentShelfGauge.WithLabelValues(shelf.Name, strconv.Itoa(shelf.ID), strconv.Itoa(rowNumber)).Set(1)
 
-	for {
-		fmt.Print("Enter ISBN13 or shelfCode: ")
+	var getInput func() string
+
+	getInput = func() string {
 		var input string
 		fmt.Scanln(&input)
+		return input
+	}
+
+	if hookDevice {
+		device, err := grabAndSetupDevice()
+		if err != nil {
+			log.Fatalln("Cannot open device:", err)
+		}
+
+		getInput = func() string {
+			return device.read()
+		}
+	}
+
+	for {
+		fmt.Println("Enter ISBN13 or shelfCode: ")
+
+		input := getInput()
+
+		fmt.Println("Input:", input)
 
 		// EAN Codes can be 8 or 13 digits long.
 		// We are using the 8 digit EAN codes for shelf codes.
@@ -94,6 +115,7 @@ func inputLoop(httpClient *http.Client, serverURL string) {
 		}
 
 		fmt.Println("ISBN:", input, "Shelf:", shelf.Name, "Row:", rowNumber)
+		booksProcessedCounter.Inc()
 		ingestBook(httpClient, serverURL, input, shelf.ID, rowNumber)
 	}
 }
@@ -104,6 +126,8 @@ func ingestBook(httpClient *http.Client, serverURL, isbn string, shelfID, rowNum
 	resp, err := httpClient.Post(fullURL, "application/json", io.Reader(nil))
 	if err != nil {
 		slog.Error("cannot post ISBN", "error", err)
+		booksFailedCounter.Inc()
+		return
 	}
 
 	if resp.StatusCode/100 != 2 {
@@ -113,10 +137,14 @@ func ingestBook(httpClient *http.Client, serverURL, isbn string, shelfID, rowNum
 			slog.Error("cannot read response body", "error", err)
 		}
 		fmt.Println("Body:", string(body))
+		booksFailedCounter.Inc()
+		return
 	} else {
 		book := models.Book{}
 		if err := json.NewDecoder(resp.Body).Decode(&book); err != nil {
 			slog.Error("cannot decode response body", "error", err)
+			booksFailedCounter.Inc()
+			return
 		}
 
 		fmt.Println("Book:", book)

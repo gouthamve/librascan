@@ -8,6 +8,7 @@ require (
 	github.com/fogleman/gg v1.3.0
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0
 	github.com/google/go-cmp v0.6.0
+	github.com/holoplot/go-evdev v0.0.0-20240306072622-217e18f17db1
 	github.com/labstack/echo-contrib v0.17.2
 	github.com/labstack/echo/v4 v4.13.3
 	github.com/pressly/goose/v3 v3.24.1
