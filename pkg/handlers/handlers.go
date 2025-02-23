@@ -193,7 +193,7 @@ func (ls *Librascan) GetAllBooks(c echo.Context) error {
 	return c.JSON(http.StatusOK, books)
 }
 
-// Add a new handler to lookup shelf name by id.
+// LookupShelfNameHandler gets shelf name by id.
 func (ls *Librascan) LookupShelfNameHandler(c echo.Context) error {
 	shelfIDStr := c.Param("id")
 	if shelfIDStr == "" {
@@ -243,6 +243,70 @@ func (ls *Librascan) DeleteBookByISBN(c echo.Context) error {
 	}
 
 	return c.NoContent(http.StatusNoContent)
+}
+
+// BorrowBookByISBN handles borrowing a book by ISBN.
+func (ls *Librascan) BorrowBookByISBN(c echo.Context) error {
+	// Pass BorrowRequest from body.
+	var req models.BorrowRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+
+	// Check if book exists.
+	_, err := getBook(ls.db, req.ISBN)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "Book not found"})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Query error: " + err.Error()})
+	}
+
+	// Check if person exists.
+	var personID int64
+	err = ls.db.QueryRow("SELECT id FROM people WHERE name = ?", req.PersonName).Scan(&personID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// Add person if not exists.
+			result, err := ls.db.Exec("INSERT INTO people (name) VALUES (?)", req.PersonName)
+			if err != nil {
+				return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Query error: " + err.Error()})
+			}
+			personID, err = result.LastInsertId()
+			if err != nil {
+				return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Query error: " + err.Error()})
+			}
+		} else {
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Query error: " + err.Error()})
+		}
+	}
+
+	// Borrow book.
+	_, err = ls.db.Exec("INSERT INTO borrowing (isbn, person_id, borrowed_at) VALUES (?, ?, datetime('now'))", req.ISBN, personID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Query error: " + err.Error()})
+	}
+
+	return c.NoContent(http.StatusNoContent)
+}
+
+func (ls *Librascan) GetPeople(c echo.Context) error {
+	rows, err := ls.db.Query("SELECT id, name FROM people;")
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "query error: " + err.Error()})
+	}
+	defer rows.Close()
+
+	people := []models.Person{}
+	for rows.Next() {
+		person := models.Person{}
+		if err := rows.Scan(&person.ID, &person.Name); err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "scan error: " + err.Error()})
+		}
+		people = append(people, person)
+	}
+
+	return c.JSON(http.StatusOK, people)
 }
 
 func deleteBook(db *sql.DB, isbn int) (int64, error) {

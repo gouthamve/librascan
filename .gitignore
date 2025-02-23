@@ -32,3 +32,5 @@ litestream.yml
 .db/librascan.db.tmp-shm
 .db/librascan.db.tmp-wal
 .DS_Store
+librascan.log
+.db/

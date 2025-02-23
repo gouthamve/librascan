@@ -131,3 +131,13 @@ type Shelf struct {
 	Name     string `json:"name"`
 	RowCount int    `json:"rows_count"`
 }
+
+type BorrowRequest struct {
+	ISBN       int    `json:"isbn"`
+	PersonName string `json:"person"`
+}
+
+type Person struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}

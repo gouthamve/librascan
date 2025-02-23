@@ -15,6 +15,7 @@ import (
 	_ "modernc.org/sqlite"
 
 	"github.com/gouthamve/librascan/pkg/readIsbn"
+	"github.com/gouthamve/librascan/pkg/tui"
 )
 
 var database = "./.db/librascan.db"
@@ -88,6 +89,22 @@ func main() {
 	}
 	waitCmd.Flags().String("server-url", "http://localhost:8080", "Server URL for posting ISBNs.")
 	waitCmd.Flags().String("input-device-path", "", "Path to the scanners udev device.")
+
+	tuiCmd := &cobra.Command{
+		Use:   "tui",
+		Short: "Launch the TUI interface",
+		Run: func(cmd *cobra.Command, args []string) {
+			serverURL, err := cmd.Flags().GetString("server-url")
+			if err != nil {
+				log.Fatalln("cannot get server URL:", err)
+			}
+
+			tui.Start(serverURL)
+		},
+	}
+	tuiCmd.Flags().String("server-url", "http://localhost:8080", "Server URL for posting ISBNs.")
+
+	rootCmd.AddCommand(tuiCmd)
 
 	rootCmd.AddCommand(serveCmd, waitCmd)
 	if err := rootCmd.Execute(); err != nil {
