@@ -19,3 +19,9 @@ setup-deps:
 	go install github.com/cespare/reflex@latest
 	go install github.com/gokrazy/tools/cmd/gok@main
 	go mod tidy
+
+download-db:
+	@echo "Downloading the latest database..."
+	rm -rf ./.db
+	mkdir -p ./.db
+	litestream restore -config litestream.yml ./.db/librascan.db
