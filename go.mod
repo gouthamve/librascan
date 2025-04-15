@@ -5,6 +5,7 @@ go 1.24.0
 toolchain go1.24.1
 
 require (
+	github.com/XSAM/otelsql v0.38.0
 	github.com/blevesearch/bleve/v2 v2.5.0
 	github.com/boombuler/barcode v1.0.2
 	github.com/disintegration/imaging v1.6.2

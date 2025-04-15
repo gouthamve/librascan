@@ -12,6 +12,9 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/pressly/goose/v3"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
+
+	"github.com/XSAM/otelsql"
+	"go.opentelemetry.io/otel/semconv/v1.30.0"
 )
 
 // serve runs migrations, starts the HTTP server and routes.
@@ -32,11 +35,14 @@ func serve(pplxAPIKey string) {
 		log.Fatalf("failed to close database: %v", err)
 	}
 
-	db, err = sql.Open("sqlite", database)
+	db, err = otelsql.Open("sqlite", database, otelsql.WithAttributes(semconv.DBSystemNameSqlite))
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}
 	defer db.Close()
+	if err = otelsql.RegisterDBStatsMetrics(db, otelsql.WithAttributes(semconv.DBSystemNameSqlite)); err != nil {
+		log.Fatalf("failed to register database stats metrics: %v", err)
+	}
 
 	// Initialize the OpenTelemetry SDK
 	shutdown, err := setupOTelSDK(context.TODO())
