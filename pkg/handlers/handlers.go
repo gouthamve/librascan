@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	_ "modernc.org/sqlite"
 
 	"github.com/labstack/echo/v4"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/gouthamve/librascan/pkg/models"
 )
@@ -41,14 +43,14 @@ func (ls *Librascan) LookupBookHandler(c echo.Context) error {
 	gb := models.GoogleBook{}
 	ol := models.OpenLibraryBook{}
 
-	googleBookResp, err := getBookFromGoogleBooks(isbnStr)
+	googleBookResp, err := getBookFromGoogleBooks(c.Request().Context(), isbnStr)
 	if err == nil && googleBookResp.TotalItems > 0 {
 		gb = googleBookResp.Items[0]
 	} else {
 		slog.Error("failed to fetch from Google Books API", "error", err, "isbn", isbnStr)
 	}
 
-	openLibraryBookResp, err := getBookFromOpenLibrary(isbnStr)
+	openLibraryBookResp, err := getBookFromOpenLibrary(c.Request().Context(), isbnStr)
 	if err == nil && len(*openLibraryBookResp) > 0 {
 		ol = (*openLibraryBookResp)[fmt.Sprintf("ISBN:%s", isbnStr)]
 	} else {
@@ -103,12 +105,12 @@ func (ls *Librascan) AddBookFromISBN(c echo.Context) error {
 	gb := models.GoogleBook{}
 	ol := models.OpenLibraryBook{}
 
-	googleBookResp, err := getBookFromGoogleBooks(isbnStr)
+	googleBookResp, err := getBookFromGoogleBooks(c.Request().Context(), isbnStr)
 	if err == nil && googleBookResp.TotalItems > 0 {
 		gb = googleBookResp.Items[0]
 	}
 
-	openLibraryBookResp, err := getBookFromOpenLibrary(isbnStr)
+	openLibraryBookResp, err := getBookFromOpenLibrary(c.Request().Context(), isbnStr)
 	if err == nil && len(*openLibraryBookResp) > 0 {
 		ol = (*openLibraryBookResp)[fmt.Sprintf("ISBN:%s", isbnStr)]
 	}
@@ -461,9 +463,9 @@ func createBookFromAPIData(gb models.GoogleBook, ol models.OpenLibraryBook) mode
 	return book
 }
 
-func getBookFromGoogleBooks(isbn string) (*models.GoogleBooksResponse, error) {
+func getBookFromGoogleBooks(ctx context.Context, isbn string) (*models.GoogleBooksResponse, error) {
 	url := fmt.Sprintf("https://www.googleapis.com/books/v1/volumes?q=isbn:%s", isbn)
-	resp, err := http.Get(url)
+	resp, err := otelhttp.Get(ctx, url)
 	if err != nil {
 		return nil, err
 	}
@@ -490,9 +492,9 @@ func getBookFromGoogleBooks(isbn string) (*models.GoogleBooksResponse, error) {
 	return &response, nil
 }
 
-func getBookFromOpenLibrary(isbn string) (*models.OpenLibraryResponse, error) {
+func getBookFromOpenLibrary(ctx context.Context, isbn string) (*models.OpenLibraryResponse, error) {
 	url := fmt.Sprintf("https://openlibrary.org/api/books?bibkeys=ISBN:%s&format=json&jscmd=data", isbn)
-	resp, err := http.Get(url)
+	resp, err := otelhttp.Get(ctx, url)
 	if err != nil {
 		return nil, err
 	}
