@@ -52,7 +52,7 @@ func TestDatabase(t *testing.T) {
 	}
 
 	// Insert the book into the database
-	if err := storeBook(db, book); err != nil {
+	if err := storeBook(t.Context(), db, book); err != nil {
 		t.Fatalf("failed to store book: %v", err)
 	}
 
@@ -60,7 +60,7 @@ func TestDatabase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to convert ISBN to int: %v", err)
 	}
-	book2, err := getBook(db, book.ISBN)
+	book2, err := getBook(t.Context(), db, book.ISBN)
 	if err != nil {
 		t.Fatalf("failed to get book: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestDatabase(t *testing.T) {
 	}
 
 	// Delete the book from the database
-	rows, err := deleteBook(db, book.ISBN)
+	rows, err := deleteBook(t.Context(), db, book.ISBN)
 	if err != nil {
 		t.Fatalf("failed to delete book: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestDatabase(t *testing.T) {
 	}
 
 	// Retrieve the book from the database
-	book3, err := getBook(db, book.ISBN)
+	book3, err := getBook(t.Context(), db, book.ISBN)
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
