@@ -25,3 +25,8 @@ download-db:
 	rm -rf ./.db
 	mkdir -p ./.db
 	litestream restore -config litestream.yml ./.db/librascan.db
+
+update-deps:
+	@echo "Updating dependencies..."
+	go get -u ./...
+	go mod tidy
