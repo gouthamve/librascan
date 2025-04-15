@@ -1,6 +1,6 @@
 build:
 	@echo "Building the application..."
-	go build -o librascan .
+	go build -o librascan ./cmd/librascan
 
 run:
 	@echo "Running the application..."
@@ -8,7 +8,11 @@ run:
 
 docker-build:
 	@echo "Building the Docker image..."
-	docker build -t librascan .
+	docker build -t gouthampersonal/librascan:latest .
+
+docker-push:
+	@echo "Pushing the Docker image to the registry..."
+	docker push gouthampersonal/librascan:latest
 
 dev:
 	@echo "Starting rapid iteration mode..."

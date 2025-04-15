@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"log"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/pressly/goose/v3"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 )
 
 // serve runs migrations, starts the HTTP server and routes.
@@ -36,11 +38,23 @@ func serve(pplxAPIKey string) {
 	}
 	defer db.Close()
 
+	// Initialize the OpenTelemetry SDK
+	shutdown, err := setupOTelSDK(context.TODO())
+	if err != nil {
+		log.Fatalf("failed to setup OpenTelemetry SDK: %v", err)
+	}
+	defer func() {
+		if err := shutdown(context.Background()); err != nil {
+			log.Fatalf("failed to shutdown OpenTelemetry SDK: %v", err)
+		}
+	}()
+
 	// Initialize the Echo instance
 	e := echo.New()
 	e.Use(middleware.Logger())
 	e.Use(echoprometheus.NewMiddleware("librascan"))
 	e.GET("/metrics", echoprometheus.NewHandler())
+	e.Use(otelecho.Middleware("librascan"))
 
 	// Setup routes in routes.go
 	SetupRoutes(e, db)

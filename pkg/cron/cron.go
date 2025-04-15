@@ -38,9 +38,9 @@ func (c *CronRunner) Run() {
 				status := "success"
 				if err != nil {
 					status = "failure"
+					log.Errorf("Job %s failed: %v", j.Name(), err)
 				}
 				cronDuration.WithLabelValues(j.Name(), status).Observe(time.Since(start).Seconds())
-				log.Errorf("Job %s failed: %v", j.Name(), err)
 
 				time.Sleep(j.Period())
 			}

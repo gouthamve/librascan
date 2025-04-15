@@ -9,4 +9,4 @@ FROM alpine:latest
 WORKDIR /app
 COPY --from=builder /app/librascan .
 EXPOSE 8080
-CMD ["./librascan", "serve"]
+ENTRYPOINT ["./librascan"]
