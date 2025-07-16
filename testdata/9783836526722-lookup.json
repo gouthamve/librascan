@@ -1,0 +1,160 @@
+{
+  "book": {
+    "isbn": 9783836526722,
+    "title": "The Fairy Tales of the Brothers Grimm",
+    "description": "This book brings together approximately two dozen of the most beloved of the Grimm fairy tales, including such classics as \"Cinderella,\" \"Snow White,\" \"Sleeping Beauty,\" and \"Hansel and Gretel\" in an all-new translation specially commissioned for this publication.",
+    "authors": [
+      "Wilhelm Grimm",
+      "Jacob Grimm"
+    ],
+    "publisher": "",
+    "published_date": "2011",
+    "categories": [
+      "Design"
+    ],
+    "pages": 0,
+    "language": "en",
+    "cover": "https://covers.openlibrary.org/b/id/8415461-L.jpg",
+    "shelf_id": 0,
+    "shelf_name": "",
+    "row_number": 0
+  },
+  "google_books_response": {
+    "kind": "books#volumes",
+    "totalItems": 1,
+    "items": [
+      {
+        "kind": "books#volume",
+        "id": "gt4MnwEACAAJ",
+        "etag": "WACaYpHzgNQ",
+        "selfLink": "https://www.googleapis.com/books/v1/volumes/gt4MnwEACAAJ",
+        "volumeInfo": {
+          "title": "The Fairy Tales of the Brothers Grimm",
+          "subtitle": "",
+          "authors": [
+            "Wilhelm Grimm",
+            "Jacob Grimm"
+          ],
+          "publisher": "",
+          "publishedDate": "2011",
+          "description": "This book brings together approximately two dozen of the most beloved of the Grimm fairy tales, including such classics as \"Cinderella,\" \"Snow White,\" \"Sleeping Beauty,\" and \"Hansel and Gretel\" in an all-new translation specially commissioned for this publication.",
+          "industryIdentifiers": [
+            {
+              "type": "ISBN_10",
+              "identifier": "3836526727"
+            },
+            {
+              "type": "ISBN_13",
+              "identifier": "9783836526722"
+            }
+          ],
+          "readingModes": {
+            "text": false,
+            "image": false
+          },
+          "pageCount": 0,
+          "printType": "BOOK",
+          "categories": [
+            "Design"
+          ],
+          "maturityRating": "NOT_MATURE",
+          "allowAnonLogging": false,
+          "contentVersion": "preview-1.0.0",
+          "panelizationSummary": {
+            "containsEpubBubbles": false,
+            "containsImageBubbles": false
+          },
+          "imageLinks": {
+            "smallThumbnail": "http://books.google.com/books/content?id=gt4MnwEACAAJ\u0026printsec=frontcover\u0026img=1\u0026zoom=5\u0026source=gbs_api",
+            "thumbnail": "http://books.google.com/books/content?id=gt4MnwEACAAJ\u0026printsec=frontcover\u0026img=1\u0026zoom=1\u0026source=gbs_api"
+          },
+          "language": "en",
+          "previewLink": "http://books.google.de/books?id=gt4MnwEACAAJ\u0026dq=isbn:9783836526722\u0026hl=\u0026cd=1\u0026source=gbs_api",
+          "infoLink": "http://books.google.de/books?id=gt4MnwEACAAJ\u0026dq=isbn:9783836526722\u0026hl=\u0026source=gbs_api",
+          "canonicalVolumeLink": "https://books.google.com/books/about/The_Fairy_Tales_of_the_Brothers_Grimm.html?hl=\u0026id=gt4MnwEACAAJ"
+        },
+        "saleInfo": {
+          "country": "DE",
+          "saleability": "NOT_FOR_SALE",
+          "isEbook": false
+        },
+        "accessInfo": {
+          "country": "DE",
+          "viewability": "NO_PAGES",
+          "embeddable": false,
+          "publicDomain": false,
+          "textToSpeechPermission": "ALLOWED",
+          "epub": {
+            "isAvailable": false
+          },
+          "pdf": {
+            "isAvailable": false
+          },
+          "webReaderLink": "http://play.google.com/books/reader?id=gt4MnwEACAAJ\u0026hl=\u0026source=gbs_api",
+          "accessViewStatus": "NONE",
+          "quoteSharingAllowed": false
+        },
+        "searchInfo": {
+          "textSnippet": "This book brings together approximately two dozen of the most beloved of the Grimm fairy tales, including such classics as \u0026quot;Cinderella,\u0026quot; \u0026quot;Snow White,\u0026quot; \u0026quot;Sleeping Beauty,\u0026quot; and \u0026quot;Hansel and Gretel\u0026quot; in an all-new translation specially ..."
+        }
+      }
+    ]
+  },
+  "open_library_response": {
+    "ISBN:9783836526722": {
+      "url": "https://openlibrary.org/books/OL26766154M/The_Fairy_Tales_of_the_Brothers_Grimm",
+      "key": "/books/OL26766154M",
+      "title": "The Fairy Tales of the Brothers Grimm",
+      "subtitle": "",
+      "authors": [
+        {
+          "url": "https://openlibrary.org/authors/OL2658408A/Gebrüder_Grimm_Brothers_Grimm",
+          "name": "Gebrüder Grimm [Brothers Grimm]"
+        }
+      ],
+      "pagination": "",
+      "weight": "",
+      "identifiers": {
+        "isbn_13": [
+          "9783836526722"
+        ],
+        "openlibrary": [
+          "OL26766154M"
+        ]
+      },
+      "publishers": [
+        {
+          "name": "TASCHEN"
+        }
+      ],
+      "publish_date": "Oct 04, 2011",
+      "subjects": [
+        {
+          "name": "Translations into English",
+          "url": "https://openlibrary.org/subjects/translations_into_english"
+        },
+        {
+          "name": "Folklore",
+          "url": "https://openlibrary.org/subjects/folklore"
+        },
+        {
+          "name": "Fairy tales",
+          "url": "https://openlibrary.org/subjects/fairy_tales"
+        },
+        {
+          "name": "Grimm brothers",
+          "url": "https://openlibrary.org/subjects/grimm_brothers"
+        },
+        {
+          "name": "German literature, translations into english",
+          "url": "https://openlibrary.org/subjects/german_literature,_translations_into_english"
+        }
+      ],
+      "cover": {
+        "small": "https://covers.openlibrary.org/b/id/8415461-S.jpg",
+        "medium": "https://covers.openlibrary.org/b/id/8415461-M.jpg",
+        "large": "https://covers.openlibrary.org/b/id/8415461-L.jpg"
+      }
+    }
+  }
+}

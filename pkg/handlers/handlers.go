@@ -19,6 +19,12 @@ import (
 	"github.com/gouthamve/librascan/pkg/models"
 )
 
+// API URLs that can be overridden for testing
+var (
+	GoogleBooksAPIURL = "https://www.googleapis.com/books/v1/volumes"
+	OpenLibraryAPIURL = "https://openlibrary.org/api/books"
+)
+
 type Librascan struct {
 	db *sql.DB
 }
@@ -122,6 +128,16 @@ func (ls *Librascan) AddBookFromISBN(c echo.Context) error {
 
 	if err := storeBook(c.Request().Context(), ls.db, book); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	// Fetch the shelf name
+	if book.ShelfID != 0 {
+		shelf, err := getShelf(c.Request().Context(), ls.db, book.ShelfID)
+		if err == nil {
+			book.ShelfName = shelf.Name
+		}
+	} else {
+		book.ShelfName = "unknown"
 	}
 
 	return c.JSON(http.StatusCreated, book)
@@ -467,7 +483,7 @@ func createBookFromAPIData(gb models.GoogleBook, ol models.OpenLibraryBook) mode
 }
 
 func getBookFromGoogleBooks(ctx context.Context, isbn string) (*models.GoogleBooksResponse, error) {
-	url := fmt.Sprintf("https://www.googleapis.com/books/v1/volumes?q=isbn:%s", isbn)
+	url := fmt.Sprintf("%s?q=isbn:%s", GoogleBooksAPIURL, isbn)
 	resp, err := otelhttp.Get(ctx, url)
 	if err != nil {
 		return nil, err
@@ -496,7 +512,7 @@ func getBookFromGoogleBooks(ctx context.Context, isbn string) (*models.GoogleBoo
 }
 
 func getBookFromOpenLibrary(ctx context.Context, isbn string) (*models.OpenLibraryResponse, error) {
-	url := fmt.Sprintf("https://openlibrary.org/api/books?bibkeys=ISBN:%s&format=json&jscmd=data", isbn)
+	url := fmt.Sprintf("%s?bibkeys=ISBN:%s&format=json&jscmd=data", OpenLibraryAPIURL, isbn)
 	resp, err := otelhttp.Get(ctx, url)
 	if err != nil {
 		return nil, err
