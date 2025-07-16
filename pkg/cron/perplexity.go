@@ -13,13 +13,23 @@ import (
 	"github.com/invopop/jsonschema"
 )
 
+// HTTPClient interface for making HTTP requests (allows mocking in tests)
+type HTTPClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
 type PerplexityJob struct {
-	db     *sql.DB
-	apiKey string
+	db         *sql.DB
+	apiKey     string
+	httpClient HTTPClient
 }
 
 func NewPerplexityJob(db *sql.DB, apiKey string) *PerplexityJob {
-	return &PerplexityJob{db: db, apiKey: apiKey}
+	return &PerplexityJob{
+		db:         db,
+		apiKey:     apiKey,
+		httpClient: &http.Client{},
+	}
 }
 
 func (p *PerplexityJob) Name() string {
@@ -107,8 +117,7 @@ func (p *PerplexityJob) enrichBook(isbn int) error {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", p.apiKey))
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := p.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("request error: %v", err)
 	}

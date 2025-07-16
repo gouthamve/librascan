@@ -16,11 +16,11 @@ docker-push:
 
 dev:
 	@echo "Starting rapid iteration mode..."
-	reflex -r '\.go$$' -r '\.html$$' -r '\.js$$' -s -- sh -c "go build -o librascan ./cmd/librascan && ./librascan serve"
+	air
 
 setup-deps:
 	@echo "Installing dependencies..."
-	go install github.com/cespare/reflex@latest
+	go install github.com/air-verse/air@latest
 	go install github.com/gokrazy/tools/cmd/gok@main
 	go mod tidy
 
@@ -34,3 +34,13 @@ update-deps:
 	@echo "Updating dependencies..."
 	go get -u ./...
 	go mod tidy
+
+test:
+	@echo "Running all tests..."
+	go test -v ./...
+
+test-coverage:
+	@echo "Running tests with coverage..."
+	go test -v -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report generated at coverage.html"
