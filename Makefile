@@ -44,3 +44,11 @@ test-coverage:
 	go test -v -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated at coverage.html"
+
+lint:
+	@echo "Running golangci-lint..."
+	@if ! command -v golangci-lint &> /dev/null; then \
+		echo "golangci-lint not found. Installing..."; \
+		go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+	fi
+	golangci-lint run --timeout=5m

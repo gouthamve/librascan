@@ -39,7 +39,11 @@ func serve(pplxAPIKey string) {
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("failed to close database: %v", err)
+		}
+	}()
 	if err = otelsql.RegisterDBStatsMetrics(db, otelsql.WithAttributes(semconv.DBSystemNameSqlite)); err != nil {
 		log.Fatalf("failed to register database stats metrics: %v", err)
 	}

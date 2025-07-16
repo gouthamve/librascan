@@ -58,7 +58,9 @@ func setupTestServer(t *testing.T) (*httptest.Server, *sql.DB, func()) {
 
 	cleanup := func() {
 		ts.Close()
-		db.Close()
+		if err := db.Close(); err != nil {
+			t.Logf("failed to close database: %v", err)
+		}
 	}
 
 	return ts, db, cleanup
@@ -108,7 +110,9 @@ func setupMockServers(t *testing.T) func() {
 	mockGoogleBooksServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/books/v1/volumes" && r.URL.Query().Get("q") == "isbn:9783836526722" {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(debugResp.GoogleBooksResponse)
+			if err := json.NewEncoder(w).Encode(debugResp.GoogleBooksResponse); err != nil {
+				t.Logf("failed to encode response: %v", err)
+			}
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -118,7 +122,9 @@ func setupMockServers(t *testing.T) func() {
 	mockOpenLibraryServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/books" && r.URL.Query().Get("bibkeys") == "ISBN:9783836526722" {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(debugResp.OpenLibraryResponse)
+			if err := json.NewEncoder(w).Encode(debugResp.OpenLibraryResponse); err != nil {
+				t.Logf("failed to encode response: %v", err)
+			}
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -146,7 +152,11 @@ func TestDebugLookupEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to make request: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Logf("failed to close response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", resp.StatusCode)
@@ -177,7 +187,11 @@ func TestBookRESTEndpoints(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to make POST request: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Logf("failed to close response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(resp.Body)
@@ -201,7 +215,11 @@ func TestBookRESTEndpoints(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to make GET request: %v", err)
 	}
-	defer getResp.Body.Close()
+	defer func() {
+		if err := getResp.Body.Close(); err != nil {
+			t.Logf("failed to close response body: %v", err)
+		}
+	}()
 
 	if getResp.StatusCode != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", getResp.StatusCode)
@@ -226,7 +244,11 @@ func TestBookRESTEndpoints(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to make DELETE request: %v", err)
 	}
-	defer deleteResp.Body.Close()
+	defer func() {
+		if err := deleteResp.Body.Close(); err != nil {
+			t.Logf("failed to close response body: %v", err)
+		}
+	}()
 
 	if deleteResp.StatusCode != http.StatusNoContent {
 		body, _ := io.ReadAll(deleteResp.Body)
@@ -238,7 +260,11 @@ func TestBookRESTEndpoints(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to make GET request after delete: %v", err)
 	}
-	defer getDeletedResp.Body.Close()
+	defer func() {
+		if err := getDeletedResp.Body.Close(); err != nil {
+			t.Logf("failed to close response body: %v", err)
+		}
+	}()
 
 	if getDeletedResp.StatusCode != http.StatusNotFound {
 		body, _ := io.ReadAll(getDeletedResp.Body)
@@ -255,7 +281,11 @@ func TestLookupShelfNameHandler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to make request: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Logf("failed to close response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -290,7 +320,11 @@ func TestLookupShelfNameHandler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to make request for shelf 2: %v", err)
 	}
-	defer resp2.Body.Close()
+	defer func() {
+		if err := resp2.Body.Close(); err != nil {
+			t.Logf("failed to close response body: %v", err)
+		}
+	}()
 
 	if resp2.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp2.Body)
@@ -325,7 +359,11 @@ func TestLookupShelfNameHandler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to make request for non-existent shelf: %v", err)
 	}
-	defer resp3.Body.Close()
+	defer func() {
+		if err := resp3.Body.Close(); err != nil {
+			t.Logf("failed to close response body: %v", err)
+		}
+	}()
 
 	if resp3.StatusCode != http.StatusNotFound {
 		body, _ := io.ReadAll(resp3.Body)
@@ -337,7 +375,11 @@ func TestLookupShelfNameHandler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to make request with invalid shelf ID: %v", err)
 	}
-	defer resp4.Body.Close()
+	defer func() {
+		if err := resp4.Body.Close(); err != nil {
+			t.Logf("failed to close response body: %v", err)
+		}
+	}()
 
 	if resp4.StatusCode != http.StatusBadRequest {
 		body, _ := io.ReadAll(resp4.Body)
@@ -357,7 +399,9 @@ func TestBorrowBookByISBN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to make POST request: %v", err)
 	}
-	resp.Body.Close()
+	if err := resp.Body.Close(); err != nil {
+		t.Logf("failed to close response body: %v", err)
+	}
 
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("expected status 201 for book creation, got %d", resp.StatusCode)
@@ -374,7 +418,11 @@ func TestBorrowBookByISBN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to make borrow request: %v", err)
 	}
-	defer borrowResp.Body.Close()
+	defer func() {
+		if err := borrowResp.Body.Close(); err != nil {
+			t.Logf("failed to close response body: %v", err)
+		}
+	}()
 
 	if borrowResp.StatusCode != http.StatusNoContent {
 		body, _ := io.ReadAll(borrowResp.Body)
@@ -392,7 +440,11 @@ func TestBorrowBookByISBN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to make borrow request for non-existent book: %v", err)
 	}
-	defer nonExistentResp.Body.Close()
+	defer func() {
+		if err := nonExistentResp.Body.Close(); err != nil {
+			t.Logf("failed to close response body: %v", err)
+		}
+	}()
 
 	if nonExistentResp.StatusCode != http.StatusNotFound {
 		body, _ := io.ReadAll(nonExistentResp.Body)
@@ -404,7 +456,11 @@ func TestBorrowBookByISBN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to make borrow request with invalid JSON: %v", err)
 	}
-	defer invalidResp.Body.Close()
+	defer func() {
+		if err := invalidResp.Body.Close(); err != nil {
+			t.Logf("failed to close response body: %v", err)
+		}
+	}()
 
 	if invalidResp.StatusCode != http.StatusBadRequest {
 		body, _ := io.ReadAll(invalidResp.Body)
@@ -416,7 +472,11 @@ func TestBorrowBookByISBN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get people: %v", err)
 	}
-	defer peopleResp.Body.Close()
+	defer func() {
+		if err := peopleResp.Body.Close(); err != nil {
+			t.Logf("failed to close response body: %v", err)
+		}
+	}()
 
 	if peopleResp.StatusCode != http.StatusOK {
 		t.Fatalf("expected status 200 for get people, got %d", peopleResp.StatusCode)

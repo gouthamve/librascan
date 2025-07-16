@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"reflect"
@@ -121,7 +122,11 @@ func (p *PerplexityJob) enrichBook(isbn int) error {
 	if err != nil {
 		return fmt.Errorf("request error: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("failed to close response body: %v", err)
+		}
+	}()
 
 	var result PPLXResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {

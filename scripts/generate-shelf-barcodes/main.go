@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"image/png"
+	"log"
 	"os"
 
 	"github.com/boombuler/barcode"
@@ -67,8 +68,12 @@ func main() {
 			}
 
 			// encode the barcode as png
-			png.Encode(file, img)
-			file.Close()
+			if err := png.Encode(file, img); err != nil {
+				log.Printf("failed to encode png: %v", err)
+			}
+			if err := file.Close(); err != nil {
+				log.Printf("failed to close file: %v", err)
+			}
 		}
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -178,7 +179,11 @@ func (ls *Librascan) GetAllBooks(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "query error: " + err.Error()})
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("failed to close rows: %v", err)
+		}
+	}()
 
 	books := []models.Book{}
 	for rows.Next() {
@@ -316,7 +321,11 @@ func (ls *Librascan) GetPeople(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "query error: " + err.Error()})
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("failed to close rows: %v", err)
+		}
+	}()
 
 	people := []models.Person{}
 	for rows.Next() {
@@ -403,7 +412,11 @@ func getAuthors(ctx context.Context, db *sql.DB, isbn int) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("failed to close rows: %v", err)
+		}
+	}()
 	var authors []string
 	for rows.Next() {
 		var name string
@@ -420,7 +433,11 @@ func getCategories(ctx context.Context, db *sql.DB, isbn int) ([]string, error) 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("failed to close rows: %v", err)
+		}
+	}()
 	var categories []string
 	for rows.Next() {
 		var name string
@@ -488,7 +505,11 @@ func getBookFromGoogleBooks(ctx context.Context, isbn string) (*models.GoogleBoo
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("failed to close response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("error fetching data from API")
@@ -517,7 +538,11 @@ func getBookFromOpenLibrary(ctx context.Context, isbn string) (*models.OpenLibra
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("failed to close response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("error fetching data")

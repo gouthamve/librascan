@@ -42,13 +42,17 @@ func (d *deviceInput) open() error {
 		}
 		if err := inputDevice.NonBlock(); err != nil {
 			fmt.Println("device nonblock error", err)
-			inputDevice.Close()
+			if err := inputDevice.Close(); err != nil {
+				fmt.Printf("failed to close input device: %v\n", err)
+			}
 			continue
 		}
 
 		if err := inputDevice.Grab(); err != nil {
 			fmt.Println("device grab error", err)
-			inputDevice.Close()
+			if err := inputDevice.Close(); err != nil {
+				fmt.Printf("failed to close input device: %v\n", err)
+			}
 			continue
 		}
 

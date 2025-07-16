@@ -57,7 +57,11 @@ func setupTestDB(t *testing.T) *sql.DB {
 
 func TestPerplexityJob_Run_Success(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Logf("failed to close database: %v", err)
+		}
+	}()
 
 	// Insert a test book that needs enrichment
 	_, err := db.Exec(`INSERT INTO books (isbn, title, is_ai_enriched) VALUES (?, ?, ?)`, 
@@ -175,7 +179,11 @@ func TestPerplexityJob_Run_Success(t *testing.T) {
 
 func TestPerplexityJob_Run_APIError(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Logf("failed to close database: %v", err)
+		}
+	}()
 
 	// Insert a test book
 	_, err := db.Exec(`INSERT INTO books (isbn, title, is_ai_enriched) VALUES (?, ?, ?)`, 
@@ -236,7 +244,11 @@ func TestPerplexityJob_Period(t *testing.T) {
 
 func TestPerplexityJob_Run_NoBooks(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Logf("failed to close database: %v", err)
+		}
+	}()
 
 	// No books to enrich
 	job := &PerplexityJob{
@@ -254,7 +266,11 @@ func TestPerplexityJob_Run_NoBooks(t *testing.T) {
 
 func TestPerplexityJob_Run_InvalidJSON(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Logf("failed to close database: %v", err)
+		}
+	}()
 
 	// Insert a test book
 	_, err := db.Exec(`INSERT INTO books (isbn, title, is_ai_enriched) VALUES (?, ?, ?)`, 

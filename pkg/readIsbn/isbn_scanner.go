@@ -68,7 +68,7 @@ func inputLoop(httpClient *http.Client, serverURL string, inputDevicePath string
 
 	getInput = func() string {
 		var input string
-		fmt.Scanln(&input)
+		_, _ = fmt.Scanln(&input)
 		return input
 	}
 
@@ -171,13 +171,19 @@ func getShelfFromCode(httpClient *http.Client, serverURL, shelfCodeStr string) (
 	if err != nil {
 		return models.Shelf{}, 0, fmt.Errorf("cannot get shelf: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("failed to close response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode/100 != 2 {
 		return models.Shelf{}, 0, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
 	shelf := models.Shelf{}
-	json.NewDecoder(resp.Body).Decode(&shelf)
+	if err := json.NewDecoder(resp.Body).Decode(&shelf); err != nil {
+		return models.Shelf{}, 0, fmt.Errorf("cannot decode shelf response: %w", err)
+	}
 	return shelf, rowNumber, nil
 }
