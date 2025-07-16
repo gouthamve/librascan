@@ -245,3 +245,102 @@ func TestBookRESTEndpoints(t *testing.T) {
 		t.Fatalf("expected status 404 after delete, got %d, body: %s", getDeletedResp.StatusCode, string(body))
 	}
 }
+
+func TestLookupShelfNameHandler(t *testing.T) {
+	ts, _, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// Test 1: Lookup the default "unknown" shelf (ID 0)
+	resp, err := http.Get(fmt.Sprintf("%s/shelf/0", ts.URL))
+	if err != nil {
+		t.Fatalf("failed to make request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected status 200, got %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	// Read response
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read response body: %v", err)
+	}
+
+	// Parse response
+	var shelf models.Shelf
+	if err := json.Unmarshal(body, &shelf); err != nil {
+		t.Fatalf("failed to unmarshal shelf response: %v", err)
+	}
+
+	// Verify the default shelf
+	if shelf.ID != 0 {
+		t.Errorf("expected shelf ID 0, got %d", shelf.ID)
+	}
+	if shelf.Name != "unknown" {
+		t.Errorf("expected shelf name 'unknown', got '%s'", shelf.Name)
+	}
+	if shelf.RowCount != 0 {
+		t.Errorf("expected row count 0, got %d", shelf.RowCount)
+	}
+
+	// Test 2: Lookup shelf ID 2 (office-small)
+	resp2, err := http.Get(fmt.Sprintf("%s/shelf/2", ts.URL))
+	if err != nil {
+		t.Fatalf("failed to make request for shelf 2: %v", err)
+	}
+	defer resp2.Body.Close()
+
+	if resp2.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp2.Body)
+		t.Fatalf("expected status 200 for shelf 2, got %d, body: %s", resp2.StatusCode, string(body))
+	}
+
+	// Read response
+	body2, err := io.ReadAll(resp2.Body)
+	if err != nil {
+		t.Fatalf("failed to read response body for shelf 2: %v", err)
+	}
+
+	// Parse response
+	var shelf2 models.Shelf
+	if err := json.Unmarshal(body2, &shelf2); err != nil {
+		t.Fatalf("failed to unmarshal shelf 2 response: %v", err)
+	}
+
+	// Verify shelf 2
+	if shelf2.ID != 2 {
+		t.Errorf("expected shelf ID 2, got %d", shelf2.ID)
+	}
+	if shelf2.Name != "office-small" {
+		t.Errorf("expected shelf name 'office-small', got '%s'", shelf2.Name)
+	}
+	if shelf2.RowCount != 7 {
+		t.Errorf("expected row count 7, got %d", shelf2.RowCount)
+	}
+
+	// Test 3: Lookup a non-existent shelf
+	resp3, err := http.Get(fmt.Sprintf("%s/shelf/999", ts.URL))
+	if err != nil {
+		t.Fatalf("failed to make request for non-existent shelf: %v", err)
+	}
+	defer resp3.Body.Close()
+
+	if resp3.StatusCode != http.StatusNotFound {
+		body, _ := io.ReadAll(resp3.Body)
+		t.Fatalf("expected status 404 for non-existent shelf, got %d, body: %s", resp3.StatusCode, string(body))
+	}
+
+	// Test 4: Invalid shelf ID
+	resp4, err := http.Get(fmt.Sprintf("%s/shelf/invalid", ts.URL))
+	if err != nil {
+		t.Fatalf("failed to make request with invalid shelf ID: %v", err)
+	}
+	defer resp4.Body.Close()
+
+	if resp4.StatusCode != http.StatusBadRequest {
+		body, _ := io.ReadAll(resp4.Body)
+		t.Fatalf("expected status 400 for invalid shelf ID, got %d, body: %s", resp4.StatusCode, string(body))
+	}
+}
