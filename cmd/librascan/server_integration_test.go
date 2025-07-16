@@ -74,19 +74,19 @@ func loadTestData(t *testing.T, filename string) []byte {
 
 func compareJSON(t *testing.T, expected, actual []byte, description string) {
 	var expectedJSON, actualJSON interface{}
-	
+
 	if err := json.Unmarshal(expected, &expectedJSON); err != nil {
 		t.Fatalf("failed to unmarshal expected JSON for %s: %v", description, err)
 	}
-	
+
 	if err := json.Unmarshal(actual, &actualJSON); err != nil {
 		t.Fatalf("failed to unmarshal actual JSON for %s: %v", description, err)
 	}
-	
+
 	// Pretty print both for comparison
 	expectedPretty, _ := json.MarshalIndent(expectedJSON, "", "  ")
 	actualPretty, _ := json.MarshalIndent(actualJSON, "", "  ")
-	
+
 	if !bytes.Equal(expectedPretty, actualPretty) {
 		t.Errorf("%s mismatch:\nExpected:\n%s\nActual:\n%s", description, string(expectedPretty), string(actualPretty))
 	}
@@ -165,7 +165,7 @@ func TestDebugLookupEndpoint(t *testing.T) {
 	compareJSON(t, expectedData, body, "debug lookup response")
 }
 
-func TestInsertAndGetBook(t *testing.T) {
+func TestBookRESTEndpoints(t *testing.T) {
 	cleanupMocks := setupMockServers(t)
 	defer cleanupMocks()
 
@@ -215,4 +215,33 @@ func TestInsertAndGetBook(t *testing.T) {
 
 	// Compare GET response
 	compareJSON(t, expectedData, getBody, "get book response")
+
+	// Test 3: Delete the book
+	deleteReq, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/books/9783836526722", ts.URL), nil)
+	if err != nil {
+		t.Fatalf("failed to create DELETE request: %v", err)
+	}
+
+	deleteResp, err := http.DefaultClient.Do(deleteReq)
+	if err != nil {
+		t.Fatalf("failed to make DELETE request: %v", err)
+	}
+	defer deleteResp.Body.Close()
+
+	if deleteResp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(deleteResp.Body)
+		t.Fatalf("expected status 204 for DELETE, got %d, body: %s", deleteResp.StatusCode, string(body))
+	}
+
+	// Test 4: Verify the book is deleted by trying to GET it again
+	getDeletedResp, err := http.Get(fmt.Sprintf("%s/books/9783836526722", ts.URL))
+	if err != nil {
+		t.Fatalf("failed to make GET request after delete: %v", err)
+	}
+	defer getDeletedResp.Body.Close()
+
+	if getDeletedResp.StatusCode != http.StatusNotFound {
+		body, _ := io.ReadAll(getDeletedResp.Body)
+		t.Fatalf("expected status 404 after delete, got %d, body: %s", getDeletedResp.StatusCode, string(body))
+	}
 }
