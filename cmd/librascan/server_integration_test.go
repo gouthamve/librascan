@@ -344,3 +344,99 @@ func TestLookupShelfNameHandler(t *testing.T) {
 		t.Fatalf("expected status 400 for invalid shelf ID, got %d, body: %s", resp4.StatusCode, string(body))
 	}
 }
+
+func TestBorrowBookByISBN(t *testing.T) {
+	cleanupMocks := setupMockServers(t)
+	defer cleanupMocks()
+
+	ts, _, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// First, insert a book to borrow
+	resp, err := http.Post(fmt.Sprintf("%s/books/9783836526722", ts.URL), "application/json", nil)
+	if err != nil {
+		t.Fatalf("failed to make POST request: %v", err)
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected status 201 for book creation, got %d", resp.StatusCode)
+	}
+
+	// Test 1: Borrow the book with a new person
+	borrowReq := models.BorrowRequest{
+		ISBN:       9783836526722,
+		PersonName: "John Doe",
+	}
+	borrowJSON, _ := json.Marshal(borrowReq)
+	
+	borrowResp, err := http.Post(fmt.Sprintf("%s/books/borrow", ts.URL), "application/json", bytes.NewReader(borrowJSON))
+	if err != nil {
+		t.Fatalf("failed to make borrow request: %v", err)
+	}
+	defer borrowResp.Body.Close()
+
+	if borrowResp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(borrowResp.Body)
+		t.Fatalf("expected status 204 for borrow request, got %d, body: %s", borrowResp.StatusCode, string(body))
+	}
+
+	// Test 2: Try to borrow a non-existent book
+	nonExistentBorrowReq := models.BorrowRequest{
+		ISBN:       1234567890123,
+		PersonName: "Jane Doe",
+	}
+	nonExistentJSON, _ := json.Marshal(nonExistentBorrowReq)
+	
+	nonExistentResp, err := http.Post(fmt.Sprintf("%s/books/borrow", ts.URL), "application/json", bytes.NewReader(nonExistentJSON))
+	if err != nil {
+		t.Fatalf("failed to make borrow request for non-existent book: %v", err)
+	}
+	defer nonExistentResp.Body.Close()
+
+	if nonExistentResp.StatusCode != http.StatusNotFound {
+		body, _ := io.ReadAll(nonExistentResp.Body)
+		t.Fatalf("expected status 404 for non-existent book borrow, got %d, body: %s", nonExistentResp.StatusCode, string(body))
+	}
+
+	// Test 3: Borrow with invalid JSON
+	invalidResp, err := http.Post(fmt.Sprintf("%s/books/borrow", ts.URL), "application/json", bytes.NewReader([]byte("invalid json")))
+	if err != nil {
+		t.Fatalf("failed to make borrow request with invalid JSON: %v", err)
+	}
+	defer invalidResp.Body.Close()
+
+	if invalidResp.StatusCode != http.StatusBadRequest {
+		body, _ := io.ReadAll(invalidResp.Body)
+		t.Fatalf("expected status 400 for invalid JSON, got %d, body: %s", invalidResp.StatusCode, string(body))
+	}
+
+	// Test 4: Verify the person was created
+	peopleResp, err := http.Get(fmt.Sprintf("%s/people", ts.URL))
+	if err != nil {
+		t.Fatalf("failed to get people: %v", err)
+	}
+	defer peopleResp.Body.Close()
+
+	if peopleResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200 for get people, got %d", peopleResp.StatusCode)
+	}
+
+	var people []models.Person
+	body, _ := io.ReadAll(peopleResp.Body)
+	if err := json.Unmarshal(body, &people); err != nil {
+		t.Fatalf("failed to unmarshal people response: %v", err)
+	}
+
+	// Verify that John Doe was created
+	found := false
+	for _, person := range people {
+		if person.Name == "John Doe" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected to find John Doe in people list, but didn't")
+	}
+}
