@@ -34,3 +34,4 @@ litestream.yml
 .DS_Store
 librascan.log
 .db/
+tmp/
