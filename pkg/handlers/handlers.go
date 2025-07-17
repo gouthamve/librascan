@@ -1,17 +1,19 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"embed"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io"
 	"log"
 	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
-
 
 	"github.com/labstack/echo/v4"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -25,6 +27,29 @@ var (
 	GoogleBooksAPIURL = "https://www.googleapis.com/books/v1/volumes"
 	OpenLibraryAPIURL = "https://openlibrary.org/api/books"
 )
+
+// Embed the templates directory
+//go:embed templates/*.html
+var templateFS embed.FS
+
+// Template variables
+var (
+	templates *template.Template
+)
+
+func init() {
+	// Custom template function to join string slices
+	funcMap := template.FuncMap{
+		"join": strings.Join,
+	}
+	
+	// Parse templates from embedded filesystem
+	var err error
+	templates, err = template.New("").Funcs(funcMap).ParseFS(templateFS, "templates/*.html")
+	if err != nil {
+		log.Fatalf("Failed to parse templates: %v", err)
+	}
+}
 
 type Librascan struct {
 	queries *db.Queries
@@ -172,40 +197,35 @@ func (ls *Librascan) GetBookByISBN(c echo.Context) error {
 	return c.JSON(http.StatusOK, book)
 }
 
-func (ls *Librascan) GetAllBooks(c echo.Context) error {
+func (ls *Librascan) GenerateHTMLHandler(c echo.Context) error {
 	ctx := c.Request().Context()
-	dbBooks, err := ls.queries.GetAllBooks(ctx)
+	books, err := getAllBooks(ctx, ls.queries)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "query error: " + err.Error()})
 	}
 
-	books := []models.Book{}
-	for _, dbBook := range dbBooks {
-		authors, err := ls.queries.GetAuthors(ctx, sql.NullInt64{Int64: dbBook.Isbn, Valid: true})
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "get authors error: " + err.Error()})
-		}
+	// Create template data
+	data := struct {
+		Books []models.Book
+	}{
+		Books: books,
+	}
 
-		categories, err := ls.queries.GetCategories(ctx, sql.NullInt64{Int64: dbBook.Isbn, Valid: true})
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "get categories error: " + err.Error()})
-		}
+	// Execute template
+	var buf bytes.Buffer
+	err = templates.ExecuteTemplate(&buf, "books.html", data)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "template error: " + err.Error()})
+	}
 
-		shelfName := "unknown"
-		if dbBook.ShelfID.Valid {
-			name, err := ls.queries.GetShelfName(ctx, dbBook.ShelfID.Int64)
-			if err == nil && name.Valid {
-				shelfName = name.String
-			}
-		}
+	return c.HTML(http.StatusOK, buf.String())
+}
 
-		book := db.ConvertDBBookRowToModel(
-			dbBook,
-			db.ConvertNullStringSliceToStringSlice(authors),
-			db.ConvertNullStringSliceToStringSlice(categories),
-			shelfName,
-		)
-		books = append(books, book)
+func (ls *Librascan) GetAllBooks(c echo.Context) error {
+	ctx := c.Request().Context()
+	books, err := getAllBooks(ctx, ls.queries)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "query error: " + err.Error()})
 	}
 
 	return c.JSON(http.StatusOK, books)
@@ -509,3 +529,43 @@ func getBookFromOpenLibrary(ctx context.Context, isbn string) (*models.OpenLibra
 
 	return &response, nil
 }
+
+func getAllBooks(ctx context.Context, queries *db.Queries) ([]models.Book, error) {
+
+	dbBooks, err := queries.GetAllBooks(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get all books error: %w", err)
+	}
+
+	books := []models.Book{}
+	for _, dbBook := range dbBooks {
+		authors, err := queries.GetAuthors(ctx, sql.NullInt64{Int64: dbBook.Isbn, Valid: true})
+		if err != nil {
+			return nil, fmt.Errorf("get authors error: %w", err)
+		}
+
+		categories, err := queries.GetCategories(ctx, sql.NullInt64{Int64: dbBook.Isbn, Valid: true})
+		if err != nil {
+			return nil, fmt.Errorf("get categories error: %w", err)
+		}
+
+		shelfName := "unknown"
+		if dbBook.ShelfID.Valid {
+			name, err := queries.GetShelfName(ctx, dbBook.ShelfID.Int64)
+			if err == nil && name.Valid {
+				shelfName = name.String
+			}
+		}
+
+		book := db.ConvertDBBookRowToModel(
+			dbBook,
+			db.ConvertNullStringSliceToStringSlice(authors),
+			db.ConvertNullStringSliceToStringSlice(categories),
+			shelfName,
+		)
+		books = append(books, book)
+	}
+
+	return books, nil
+}
+

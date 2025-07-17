@@ -2,21 +2,19 @@ package main
 
 import (
 	"database/sql"
-	"net/http"
 
 	"github.com/gouthamve/librascan/pkg/handlers"
 	"github.com/labstack/echo/v4"
 )
 
 // SetupRoutes registers HTTP endpoints using the Echo instance.
-func SetupRoutes(e *echo.Echo, db *sql.DB) {
-	// Root endpoint that increments the metric
-	e.GET("/", func(c echo.Context) error {
-		return c.String(http.StatusOK, "Hello, World!")
-	})
+func SetupRoutes(e *echo.Echo, database *sql.DB) {
 
-	ls := handlers.NewLibrascan(db)
+	// Root endpoint that displays all books in an HTML table
 
+	ls := handlers.NewLibrascan(database)
+
+	e.GET("/", ls.GenerateHTMLHandler)
 	e.GET("/debug/lookup/:isbn", ls.LookupBookHandler)
 
 	e.POST("/books/:isbn", ls.AddBookFromISBN)

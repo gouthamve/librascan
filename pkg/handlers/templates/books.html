@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Library Books</title>
+	<style>
+		* {
+			box-sizing: border-box;
+			margin: 0;
+			padding: 0;
+		}
+		
+		body {
+			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+			background-color: #f5f5f5;
+			color: #333;
+			line-height: 1.6;
+		}
+		
+		.container {
+			max-width: 1400px;
+			margin: 0 auto;
+			padding: 20px;
+		}
+		
+		h1 {
+			text-align: center;
+			color: #2c3e50;
+			margin-bottom: 30px;
+			font-size: 2.5em;
+		}
+		
+		.search-container {
+			background: white;
+			padding: 20px;
+			border-radius: 8px;
+			box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+			margin-bottom: 20px;
+		}
+		
+		.search-wrapper {
+			display: flex;
+			gap: 10px;
+			align-items: center;
+			max-width: 600px;
+			margin: 0 auto;
+		}
+		
+		#searchInput {
+			flex: 1;
+			padding: 12px 20px;
+			font-size: 16px;
+			border: 2px solid #ddd;
+			border-radius: 4px;
+			transition: border-color 0.3s;
+		}
+		
+		#searchInput:focus {
+			outline: none;
+			border-color: #3498db;
+		}
+		
+		#clearSearch {
+			padding: 12px 20px;
+			background: #e74c3c;
+			color: white;
+			border: none;
+			border-radius: 4px;
+			cursor: pointer;
+			font-size: 16px;
+			transition: background 0.3s;
+		}
+		
+		#clearSearch:hover {
+			background: #c0392b;
+		}
+		
+		.results-info {
+			text-align: center;
+			margin-top: 10px;
+			color: #666;
+		}
+		
+		.table-container {
+			background: white;
+			border-radius: 8px;
+			box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+			overflow: hidden;
+		}
+		
+		table {
+			width: 100%;
+			border-collapse: collapse;
+		}
+		
+		th {
+			background: #34495e;
+			color: white;
+			padding: 15px;
+			text-align: left;
+			font-weight: 600;
+			position: sticky;
+			top: 0;
+			z-index: 10;
+		}
+		
+		td {
+			padding: 15px;
+			border-bottom: 1px solid #eee;
+		}
+		
+		tr {
+			transition: background-color 0.2s;
+		}
+		
+		tr:hover {
+			background-color: #f8f9fa;
+		}
+		
+		tr.hidden {
+			display: none;
+		}
+		
+		.cover-cell img {
+			max-width: 60px;
+			max-height: 90px;
+			display: block;
+			margin: 0 auto;
+			border-radius: 4px;
+			box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+		}
+		
+		.no-results {
+			text-align: center;
+			padding: 40px;
+			color: #666;
+			display: none;
+		}
+		
+		@media (max-width: 768px) {
+			.container {
+				padding: 10px;
+			}
+			
+			h1 {
+				font-size: 1.8em;
+			}
+			
+			.table-container {
+				overflow-x: auto;
+			}
+			
+			table {
+				min-width: 700px;
+			}
+			
+			th, td {
+				padding: 10px;
+				font-size: 14px;
+			}
+			
+			.cover-cell {
+				display: none;
+			}
+		}
+		
+		.highlight {
+			background-color: #fff3cd;
+			font-weight: bold;
+		}
+	</style>
+</head>
+<body>
+	<div class="container">
+		<h1>📚 Library Books</h1>
+		
+		<div class="search-container">
+			<div class="search-wrapper">
+				<input type="text" id="searchInput" placeholder="Search by title, author, ISBN, publisher, or category...">
+				<button id="clearSearch">Clear</button>
+			</div>
+			<div class="results-info">
+				Showing <span id="visibleCount">{{len .Books}}</span> of <span id="totalCount">{{len .Books}}</span> books
+			</div>
+		</div>
+		
+		<div class="table-container">
+			<table id="booksTable">
+				<thead>
+					<tr>
+						<th class="cover-cell">Cover</th>
+						<th>Title</th>
+						<th>Authors</th>
+						<th>ISBN</th>
+						<th>Publisher</th>
+						<th>Categories</th>
+						<th>Location</th>
+					</tr>
+				</thead>
+				<tbody>
+					{{range .Books}}
+					<tr>
+						<td class="cover-cell">
+							{{if .CoverURL}}
+							<img src="{{.CoverURL}}" alt="Cover" loading="lazy">
+							{{end}}
+						</td>
+						<td class="title-cell">{{.Title}}</td>
+						<td class="authors-cell">{{join .Authors ", "}}</td>
+						<td class="isbn-cell">{{.ISBN}}</td>
+						<td class="publisher-cell">{{.Publisher}}</td>
+						<td class="categories-cell">{{join .Categories ", "}}</td>
+						<td class="location-cell">{{.ShelfName}} (Row {{.RowNumber}})</td>
+					</tr>
+					{{end}}
+				</tbody>
+			</table>
+			<div class="no-results" id="noResults">
+				<h3>No books found</h3>
+				<p>Try adjusting your search terms</p>
+			</div>
+		</div>
+	</div>
+	
+	<script>
+		const searchInput = document.getElementById('searchInput');
+		const clearButton = document.getElementById('clearSearch');
+		const booksTable = document.getElementById('booksTable');
+		const tbody = booksTable.querySelector('tbody');
+		const visibleCount = document.getElementById('visibleCount');
+		const totalCount = document.getElementById('totalCount');
+		const noResults = document.getElementById('noResults');
+		const totalBooks = {{len .Books}};
+		
+		function performSearch() {
+			const searchTerm = searchInput.value.toLowerCase().trim();
+			const rows = tbody.querySelectorAll('tr');
+			let visibleRows = 0;
+			
+			rows.forEach(row => {
+				const text = row.textContent.toLowerCase();
+				const isVisible = searchTerm === '' || text.includes(searchTerm);
+				
+				row.classList.toggle('hidden', !isVisible);
+				if (isVisible) visibleRows++;
+			});
+			
+			visibleCount.textContent = visibleRows;
+			noResults.style.display = visibleRows === 0 ? 'block' : 'none';
+			tbody.style.display = visibleRows === 0 ? 'none' : '';
+		}
+		
+		searchInput.addEventListener('input', performSearch);
+		
+		clearButton.addEventListener('click', () => {
+			searchInput.value = '';
+			performSearch();
+			searchInput.focus();
+		});
+		
+		// Allow searching with Enter key
+		searchInput.addEventListener('keypress', (e) => {
+			if (e.key === 'Enter') {
+				performSearch();
+			}
+		});
+		
+		// Focus search input on page load
+		window.addEventListener('load', () => {
+			searchInput.focus();
+		});
+	</script>
+</body>
+</html>
