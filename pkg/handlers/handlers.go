@@ -12,11 +12,11 @@ import (
 	"strconv"
 	"strings"
 
-	_ "modernc.org/sqlite"
 
 	"github.com/labstack/echo/v4"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
+	"github.com/gouthamve/librascan/pkg/db"
 	"github.com/gouthamve/librascan/pkg/models"
 )
 
@@ -27,11 +27,11 @@ var (
 )
 
 type Librascan struct {
-	db *sql.DB
+	queries *db.Queries
 }
 
-func NewLibrascan(db *sql.DB) *Librascan {
-	return &Librascan{db: db}
+func NewLibrascan(database *sql.DB) *Librascan {
+	return &Librascan{queries: db.New(database)}
 }
 
 // LookupBookHandler handles requests for a book lookup by ISBN using Open Library API.
@@ -127,15 +127,15 @@ func (ls *Librascan) AddBookFromISBN(c echo.Context) error {
 	book.RowNumber = rowNumber
 	book.ShelfID = shelfID
 
-	if err := storeBook(c.Request().Context(), ls.db, book); err != nil {
+	if err := ls.storeBook(c.Request().Context(), book); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
 	// Fetch the shelf name
 	if book.ShelfID != 0 {
-		shelf, err := getShelf(c.Request().Context(), ls.db, book.ShelfID)
-		if err == nil {
-			book.ShelfName = shelf.Name
+		shelfName, err := ls.queries.GetShelfName(c.Request().Context(), int64(book.ShelfID))
+		if err == nil && shelfName.Valid {
+			book.ShelfName = shelfName.String
 		}
 	} else {
 		book.ShelfName = "unknown"
@@ -161,8 +161,7 @@ func (ls *Librascan) GetBookByISBN(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid ISBN"})
 	}
 
-	var book models.Book
-	book, err = getBook(c.Request().Context(), ls.db, isbn)
+	book, err := ls.getBook(c.Request().Context(), int64(isbn))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return c.JSON(http.StatusNotFound, map[string]string{"error": "Book not found"})
@@ -175,42 +174,37 @@ func (ls *Librascan) GetBookByISBN(c echo.Context) error {
 
 func (ls *Librascan) GetAllBooks(c echo.Context) error {
 	ctx := c.Request().Context()
-	rows, err := ls.db.QueryContext(ctx, "SELECT isbn, title, description, publisher, published_date, pages, language, cover_url, shelf_id, row_number FROM books;")
+	dbBooks, err := ls.queries.GetAllBooks(ctx)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "query error: " + err.Error()})
 	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			log.Printf("failed to close rows: %v", err)
-		}
-	}()
 
 	books := []models.Book{}
-	for rows.Next() {
-		book := models.Book{}
-
-		if err := rows.Scan(&book.ISBN, &book.Title, &book.Description, &book.Publisher, &book.PublishedDate, &book.Pages, &book.Language, &book.CoverURL, &book.ShelfID, &book.RowNumber); err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "scan error: " + err.Error()})
-		}
-
-		authors, err := getAuthors(ctx, ls.db, book.ISBN)
+	for _, dbBook := range dbBooks {
+		authors, err := ls.queries.GetAuthors(ctx, sql.NullInt64{Int64: dbBook.Isbn, Valid: true})
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "get authors error: " + err.Error()})
 		}
-		book.Authors = authors
 
-		categories, err := getCategories(ctx, ls.db, book.ISBN)
+		categories, err := ls.queries.GetCategories(ctx, sql.NullInt64{Int64: dbBook.Isbn, Valid: true})
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "get categories error: " + err.Error()})
 		}
-		book.Categories = categories
 
-		shelf, err := getShelf(ctx, ls.db, book.ShelfID)
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "get shelf error: " + err.Error()})
+		shelfName := "unknown"
+		if dbBook.ShelfID.Valid {
+			name, err := ls.queries.GetShelfName(ctx, dbBook.ShelfID.Int64)
+			if err == nil && name.Valid {
+				shelfName = name.String
+			}
 		}
-		book.ShelfName = shelf.Name
 
+		book := db.ConvertDBBookRowToModel(
+			dbBook,
+			db.ConvertNullStringSliceToStringSlice(authors),
+			db.ConvertNullStringSliceToStringSlice(categories),
+			shelfName,
+		)
 		books = append(books, book)
 	}
 
@@ -228,7 +222,7 @@ func (ls *Librascan) LookupShelfNameHandler(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid shelf id"})
 	}
 
-	shelf, err := getShelf(c.Request().Context(), ls.db, shelfID)
+	shelf, err := ls.queries.GetShelf(c.Request().Context(), int64(shelfID))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return c.JSON(http.StatusNotFound, map[string]string{"error": "shelf not found"})
@@ -236,7 +230,11 @@ func (ls *Librascan) LookupShelfNameHandler(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "query error: " + err.Error()})
 	}
 
-	return c.JSON(http.StatusOK, shelf)
+	return c.JSON(http.StatusOK, models.Shelf{
+		ID:       int(shelf.ID),
+		Name:     db.NullStringToString(shelf.Name),
+		RowCount: db.NullInt64ToInt(shelf.RowsCount),
+	})
 }
 
 // DeleteBookByISBN handles deletion of a book from the database by ISBN.
@@ -256,8 +254,7 @@ func (ls *Librascan) DeleteBookByISBN(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid ISBN"})
 	}
 
-	rows, err := deleteBook(c.Request().Context(), ls.db, isbn)
-
+	rows, err := ls.queries.DeleteBook(c.Request().Context(), int64(isbn))
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
@@ -280,7 +277,7 @@ func (ls *Librascan) BorrowBookByISBN(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Check if book exists.
-	_, err := getBook(ctx, ls.db, req.ISBN)
+	_, err := ls.getBook(ctx, int64(req.ISBN))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return c.JSON(http.StatusNotFound, map[string]string{"error": "Book not found"})
@@ -290,15 +287,11 @@ func (ls *Librascan) BorrowBookByISBN(c echo.Context) error {
 
 	// Check if person exists.
 	var personID int64
-	err = ls.db.QueryRowContext(ctx, "SELECT id FROM people WHERE name = ?", req.PersonName).Scan(&personID)
+	personID, err = ls.queries.GetPerson(ctx, req.PersonName)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// Add person if not exists.
-			result, err := ls.db.ExecContext(ctx, "INSERT INTO people (name) VALUES (?)", req.PersonName)
-			if err != nil {
-				return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Query error: " + err.Error()})
-			}
-			personID, err = result.LastInsertId()
+			personID, err = ls.queries.InsertPerson(ctx, req.PersonName)
 			if err != nil {
 				return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Query error: " + err.Error()})
 			}
@@ -308,7 +301,10 @@ func (ls *Librascan) BorrowBookByISBN(c echo.Context) error {
 	}
 
 	// Borrow book.
-	_, err = ls.db.ExecContext(ctx, "INSERT INTO borrowing (isbn, person_id, borrowed_at) VALUES (?, ?, datetime('now'))", req.ISBN, personID)
+	err = ls.queries.InsertBorrowing(ctx, db.InsertBorrowingParams{
+		Isbn:     int64(req.ISBN),
+		PersonID: personID,
+	})
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Query error: " + err.Error()})
 	}
@@ -317,59 +313,58 @@ func (ls *Librascan) BorrowBookByISBN(c echo.Context) error {
 }
 
 func (ls *Librascan) GetPeople(c echo.Context) error {
-	rows, err := ls.db.QueryContext(c.Request().Context(), "SELECT id, name FROM people;")
+	dbPeople, err := ls.queries.GetAllPeople(c.Request().Context())
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "query error: " + err.Error()})
 	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			log.Printf("failed to close rows: %v", err)
-		}
-	}()
 
 	people := []models.Person{}
-	for rows.Next() {
-		person := models.Person{}
-		if err := rows.Scan(&person.ID, &person.Name); err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "scan error: " + err.Error()})
-		}
-		people = append(people, person)
+	for _, dbPerson := range dbPeople {
+		people = append(people, models.Person{
+			ID:   int(dbPerson.ID),
+			Name: dbPerson.Name,
+		})
 	}
 
 	return c.JSON(http.StatusOK, people)
 }
 
-func deleteBook(ctx context.Context, db *sql.DB, isbn int) (int64, error) {
-	result, err := db.ExecContext(ctx, "DELETE FROM books WHERE isbn = ?", isbn)
-	if err != nil {
-		return 0, err
-	}
-
-	return result.RowsAffected()
-}
-
-func storeBook(ctx context.Context, db *sql.DB, book models.Book) error {
-	_, err := db.ExecContext(ctx, `
-		INSERT INTO books 
-		(isbn, title, description, publisher, published_date, pages, language, cover_url, row_number, shelf_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(isbn) DO UPDATE SET
-			row_number = excluded.row_number,
-			shelf_id = excluded.shelf_id`,
-		book.ISBN, book.Title, book.Description, book.Publisher, book.PublishedDate,
-		book.Pages, book.Language, book.CoverURL, book.RowNumber, book.ShelfID)
+// storeBook stores a book in the database using sqlc
+func (ls *Librascan) storeBook(ctx context.Context, book models.Book) error {
+	// Insert or update book
+	err := ls.queries.InsertBook(ctx, db.InsertBookParams{
+		Isbn:          int64(book.ISBN),
+		Title:         db.StringToNullString(book.Title),
+		Description:   db.StringToNullString(book.Description),
+		Publisher:     db.StringToNullString(book.Publisher),
+		PublishedDate: db.StringToNullString(book.PublishedDate),
+		Pages:         db.IntToNullInt64(book.Pages),
+		Language:      db.StringToNullString(book.Language),
+		CoverUrl:      db.StringToNullString(book.CoverURL),
+		RowNumber:     db.IntToNullInt64(book.RowNumber),
+		ShelfID:       db.IntToNullInt64(book.ShelfID),
+	})
 	if err != nil {
 		return err
 	}
+
+	// Insert authors
 	for _, author := range book.Authors {
-		_, err = db.ExecContext(ctx, "INSERT OR IGNORE INTO authors (isbn, name) VALUES (?, ?)", book.ISBN, author)
+		err = ls.queries.InsertAuthor(ctx, db.InsertAuthorParams{
+			Isbn: sql.NullInt64{Int64: int64(book.ISBN), Valid: true},
+			Name: sql.NullString{String: author, Valid: true},
+		})
 		if err != nil {
 			return err
 		}
 	}
 
+	// Insert categories
 	for _, category := range book.Categories {
-		_, err = db.ExecContext(ctx, "INSERT OR IGNORE INTO categories (isbn, name) VALUES (?, ?)", book.ISBN, category)
+		err = ls.queries.InsertCategory(ctx, db.InsertCategoryParams{
+			Isbn: sql.NullInt64{Int64: int64(book.ISBN), Valid: true},
+			Name: sql.NullString{String: category, Valid: true},
+		})
 		if err != nil {
 			return err
 		}
@@ -378,87 +373,37 @@ func storeBook(ctx context.Context, db *sql.DB, book models.Book) error {
 	return nil
 }
 
-func getBook(ctx context.Context, db *sql.DB, isbn int) (models.Book, error) {
-	var book models.Book
-	row := db.QueryRowContext(ctx, "SELECT isbn, title, description, publisher, published_date, pages, language, cover_url, row_number, shelf_id FROM books WHERE isbn = ?", isbn)
-	err := row.Scan(&book.ISBN, &book.Title, &book.Description, &book.Publisher, &book.PublishedDate, &book.Pages, &book.Language, &book.CoverURL, &book.RowNumber, &book.ShelfID)
+// getBook retrieves a book from the database using sqlc
+func (ls *Librascan) getBook(ctx context.Context, isbn int64) (models.Book, error) {
+	dbBook, err := ls.queries.GetBook(ctx, isbn)
 	if err != nil {
 		return models.Book{}, err
 	}
 
-	authors, err := getAuthors(ctx, db, isbn)
+	authors, err := ls.queries.GetAuthors(ctx, sql.NullInt64{Int64: isbn, Valid: true})
 	if err != nil {
 		return models.Book{}, err
 	}
-	book.Authors = authors
 
-	categories, err := getCategories(ctx, db, isbn)
+	categories, err := ls.queries.GetCategories(ctx, sql.NullInt64{Int64: isbn, Valid: true})
 	if err != nil {
 		return models.Book{}, err
 	}
-	book.Categories = categories
 
-	row = db.QueryRowContext(ctx, "SELECT name FROM shelfs WHERE id = ?", book.ShelfID)
-	err = row.Scan(&book.ShelfName)
-	if err != nil {
-		return book, err
-	}
-
-	return book, nil
-}
-
-func getAuthors(ctx context.Context, db *sql.DB, isbn int) ([]string, error) {
-	rows, err := db.QueryContext(ctx, "SELECT name FROM authors WHERE isbn = ?", isbn)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			log.Printf("failed to close rows: %v", err)
+	shelfName := "unknown"
+	if dbBook.ShelfID.Valid {
+		name, err := ls.queries.GetShelfName(ctx, dbBook.ShelfID.Int64)
+		if err == nil && name.Valid {
+			shelfName = name.String
 		}
-	}()
-	var authors []string
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			return nil, err
-		}
-		authors = append(authors, name)
-	}
-	return authors, rows.Err()
-}
-
-func getCategories(ctx context.Context, db *sql.DB, isbn int) ([]string, error) {
-	rows, err := db.QueryContext(ctx, "SELECT name FROM categories WHERE isbn = ?", isbn)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			log.Printf("failed to close rows: %v", err)
-		}
-	}()
-	var categories []string
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			return nil, err
-		}
-		categories = append(categories, name)
-	}
-	return categories, rows.Err()
-}
-
-func getShelf(ctx context.Context, db *sql.DB, shelfID int) (models.Shelf, error) {
-	shelf := models.Shelf{
-		ID: shelfID,
-	}
-	err := db.QueryRowContext(ctx, "SELECT name, rows_count FROM shelfs WHERE id = ?", shelfID).Scan(&shelf.Name, &shelf.RowCount)
-	if err != nil {
-		return shelf, err
 	}
 
-	return shelf, nil
+	return db.ConvertDBBookToModel(
+		dbBook,
+		db.ConvertNullStringSliceToStringSlice(authors),
+		db.ConvertNullStringSliceToStringSlice(categories),
+		shelfName,
+	), nil
 }
 
 func createBookFromAPIData(gb models.GoogleBook, ol models.OpenLibraryBook) models.Book {

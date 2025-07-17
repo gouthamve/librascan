@@ -127,11 +127,8 @@ func TestPerplexityJob_Run_Success(t *testing.T) {
 		},
 	}
 
-	job := &PerplexityJob{
-		db:         db,
-		apiKey:     "test-api-key",
-		httpClient: mockClient,
-	}
+	job := NewPerplexityJob(db, "test-api-key")
+	job.httpClient = mockClient
 
 	// Run the job
 	err = job.Run()
@@ -202,11 +199,8 @@ func TestPerplexityJob_Run_APIError(t *testing.T) {
 		},
 	}
 
-	job := &PerplexityJob{
-		db:         db,
-		apiKey:     "test-api-key",
-		httpClient: mockClient,
-	}
+	job := NewPerplexityJob(db, "test-api-key")
+	job.httpClient = mockClient
 
 	// Run should fail
 	err = job.Run()
@@ -251,11 +245,8 @@ func TestPerplexityJob_Run_NoBooks(t *testing.T) {
 	}()
 
 	// No books to enrich
-	job := &PerplexityJob{
-		db:         db,
-		apiKey:     "test-api-key",
-		httpClient: &MockHTTPClient{},
-	}
+	job := NewPerplexityJob(db, "test-api-key")
+	job.httpClient = &MockHTTPClient{}
 
 	// Run should succeed with no books
 	err := job.Run()
@@ -289,11 +280,8 @@ func TestPerplexityJob_Run_InvalidJSON(t *testing.T) {
 		},
 	}
 
-	job := &PerplexityJob{
-		db:         db,
-		apiKey:     "test-api-key",
-		httpClient: mockClient,
-	}
+	job := NewPerplexityJob(db, "test-api-key")
+	job.httpClient = mockClient
 
 	// Run should fail
 	err = job.Run()

@@ -10,8 +10,10 @@ import (
 	"os"
 	"reflect"
 	"time"
+	"context"
 
 	"github.com/invopop/jsonschema"
+	"github.com/gouthamve/librascan/pkg/db"
 )
 
 // HTTPClient interface for making HTTP requests (allows mocking in tests)
@@ -20,14 +22,14 @@ type HTTPClient interface {
 }
 
 type PerplexityJob struct {
-	db         *sql.DB
+	queries    *db.Queries
 	apiKey     string
 	httpClient HTTPClient
 }
 
-func NewPerplexityJob(db *sql.DB, apiKey string) *PerplexityJob {
+func NewPerplexityJob(database *sql.DB, apiKey string) *PerplexityJob {
 	return &PerplexityJob{
-		db:         db,
+		queries:    db.New(database),
 		apiKey:     apiKey,
 		httpClient: &http.Client{},
 	}
@@ -42,37 +44,19 @@ func (p *PerplexityJob) Period() time.Duration {
 }
 
 func (p *PerplexityJob) Run() error {
-	rows, err := p.db.Query("SELECT isbn FROM books WHERE is_ai_enriched = 0")
+	ctx := context.Background()
+	unenrichedISBNs, err := p.queries.GetUnenrichedBooks(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to query books: %v", err)
-	}
-
-	unenrichedISBNs := []int{}
-
-	for rows.Next() {
-		var isbn int
-		if err := rows.Scan(&isbn); err != nil {
-			return fmt.Errorf("failed to scan row: %v", err)
-		}
-
-		unenrichedISBNs = append(unenrichedISBNs, isbn)
-	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("rows iteration error: %v", err)
-	}
-
-	if err := rows.Close(); err != nil {
-		return fmt.Errorf("rows close error: %v", err)
+		return fmt.Errorf("failed to query unenriched books: %v", err)
 	}
 
 	for _, isbn := range unenrichedISBNs {
-		if err := p.enrichBook(isbn); err != nil {
+		if err := p.enrichBook(int(isbn)); err != nil {
 			return fmt.Errorf("enrichment error: %v", err)
 		}
 	}
 
 	return nil
-
 }
 
 func (p *PerplexityJob) enrichBook(isbn int) error {
@@ -138,39 +122,56 @@ func (p *PerplexityJob) enrichBook(isbn int) error {
 		return fmt.Errorf("book JSON unmarshal error: %v", err)
 	}
 
+	ctx := context.Background()
+
 	// Update title if none exists.
-	_, err = p.db.Exec("UPDATE books SET title = ? WHERE isbn = ? AND (title IS NULL or title = '')", book.Title, isbn)
+	err = p.queries.UpdateBookTitle(ctx, db.UpdateBookTitleParams{
+		Title: sql.NullString{String: book.Title, Valid: book.Title != ""},
+		Isbn:  int64(isbn),
+	})
 	if err != nil {
 		return fmt.Errorf("failed to update title: %v", err)
 	}
 
 	// Update description if none exists.
-	_, err = p.db.Exec("UPDATE books SET description = ? WHERE isbn = ? AND (description IS NULL or description = '')", book.Description, isbn)
+	err = p.queries.UpdateBookDescription(ctx, db.UpdateBookDescriptionParams{
+		Description: sql.NullString{String: book.Description, Valid: book.Description != ""},
+		Isbn:        int64(isbn),
+	})
 	if err != nil {
 		return fmt.Errorf("failed to update description: %v", err)
 	}
 
 	// Update publish_date if none exists.
-	_, err = p.db.Exec("UPDATE books SET published_date = ? WHERE isbn = ? AND (published_date IS NULL or published_date = '')", book.PublishDate, isbn)
+	err = p.queries.UpdateBookPublishedDate(ctx, db.UpdateBookPublishedDateParams{
+		PublishedDate: sql.NullString{String: book.PublishDate, Valid: book.PublishDate != ""},
+		Isbn:          int64(isbn),
+	})
 	if err != nil {
 		return fmt.Errorf("failed to update published_date: %v", err)
 	}
 
 	for _, author := range book.Authors {
-		_, err = p.db.Exec("INSERT OR IGNORE INTO authors (name, isbn) VALUES (?, ?)", author, isbn)
+		err = p.queries.InsertAuthor(ctx, db.InsertAuthorParams{
+			Name: sql.NullString{String: author, Valid: true},
+			Isbn: sql.NullInt64{Int64: int64(isbn), Valid: true},
+		})
 		if err != nil {
 			return fmt.Errorf("failed to insert author: %v", err)
 		}
 	}
 
 	for _, genre := range book.Genres {
-		_, err = p.db.Exec("INSERT OR IGNORE INTO categories (name, isbn) VALUES (?, ?)", genre, isbn)
+		err = p.queries.InsertCategory(ctx, db.InsertCategoryParams{
+			Name: sql.NullString{String: genre, Valid: true},
+			Isbn: sql.NullInt64{Int64: int64(isbn), Valid: true},
+		})
 		if err != nil {
 			return fmt.Errorf("failed to insert genre: %v", err)
 		}
 	}
 
-	_, err = p.db.Exec("UPDATE books SET is_ai_enriched = 1 WHERE isbn = ?", isbn)
+	err = p.queries.MarkBookAsEnriched(ctx, int64(isbn))
 	if err != nil {
 		return fmt.Errorf("failed to update is_ai_enriched: %v", err)
 	}
