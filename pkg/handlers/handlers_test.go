@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
+	_ "modernc.org/sqlite"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gouthamve/librascan/migrations"
 
@@ -55,16 +56,16 @@ func TestDatabase(t *testing.T) {
 		RowNumber:     1,
 	}
 
+	// Create Librascan instance with sqlc
+	ls := NewLibrascan(db)
+
 	// Insert the book into the database
-	if err := storeBook(t.Context(), db, book); err != nil {
+	if err := ls.storeBook(t.Context(), book); err != nil {
 		t.Fatalf("failed to store book: %v", err)
 	}
 
 	// Retrieve the book from the database
-	if err != nil {
-		t.Fatalf("failed to convert ISBN to int: %v", err)
-	}
-	book2, err := getBook(t.Context(), db, book.ISBN)
+	book2, err := ls.getBook(t.Context(), int64(book.ISBN))
 	if err != nil {
 		t.Fatalf("failed to get book: %v", err)
 	}
@@ -75,7 +76,7 @@ func TestDatabase(t *testing.T) {
 	}
 
 	// Delete the book from the database
-	rows, err := deleteBook(t.Context(), db, book.ISBN)
+	rows, err := ls.queries.DeleteBook(t.Context(), int64(book.ISBN))
 	if err != nil {
 		t.Fatalf("failed to delete book: %v", err)
 	}
@@ -84,7 +85,7 @@ func TestDatabase(t *testing.T) {
 	}
 
 	// Retrieve the book from the database
-	book3, err := getBook(t.Context(), db, book.ISBN)
+	book3, err := ls.getBook(t.Context(), int64(book.ISBN))
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
