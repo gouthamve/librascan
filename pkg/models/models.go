@@ -119,7 +119,7 @@ type Book struct {
 	Categories    []string `json:"categories"`
 	Pages         int      `json:"pages"`
 	Language      string   `json:"language"`
-	CoverURL      string   `json:"cover"`
+	CoverURL      string   `json:"cover_url"`
 
 	ShelfID   int    `json:"shelf_id"`
 	ShelfName string `json:"shelf_name"`

@@ -122,7 +122,7 @@ func inputLoop(httpClient *http.Client, serverURL string, inputDevicePath string
 
 func ingestBook(httpClient *http.Client, serverURL, isbn string, shelfID, rowNumber int) {
 	// Use the provided serverURL instead of the hardcoded value.
-	fullURL := fmt.Sprintf("%s/books/%s?shelf_id=%d&row_number=%d", serverURL, isbn, shelfID, rowNumber)
+	fullURL := fmt.Sprintf("%s/api/v1/books/%s?shelf_id=%d&row_number=%d", serverURL, isbn, shelfID, rowNumber)
 	resp, err := httpClient.Post(fullURL, "application/json", io.Reader(nil))
 	if err != nil {
 		slog.Error("cannot post ISBN", "error", err)
@@ -166,7 +166,7 @@ func getShelfFromCode(httpClient *http.Client, serverURL, shelfCodeStr string) (
 	rowNumber := shelfCode % 10
 	shelfID := shelfCode / 10
 
-	fullURL := fmt.Sprintf("%s/shelf/%d", serverURL, shelfID)
+	fullURL := fmt.Sprintf("%s/api/v1/shelf/%d", serverURL, shelfID)
 	resp, err := httpClient.Get(fullURL)
 	if err != nil {
 		return models.Shelf{}, 0, fmt.Errorf("cannot get shelf: %w", err)
